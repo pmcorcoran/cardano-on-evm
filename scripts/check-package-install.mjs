@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, readFile, writeFile, readdir, lstat, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, writeFile, readdir, lstat, rm, open } from 'node:fs/promises';
+import { constants } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { execFile } from 'node:child_process';
+import { execFile, execFileSync } from 'node:child_process';
 import { promisify } from 'node:util';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
@@ -12,6 +13,14 @@ const run = promisify(execFile), source = process.cwd();
 export const names = ['wallet', 'protocol', 'enrollment', 'sdk', 'submission', 'contracts'];
 const sha = (bytes) => createHash('sha256').update(bytes).digest('hex');
 const json = async (path) => JSON.parse(await readFile(path, 'utf8'));
+
+async function readRegularFile(path) {
+  const file = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+  try {
+    assert.ok((await file.stat()).isFile(), 'Input must be a regular file');
+    return await file.readFile();
+  } finally { await file.close(); }
+}
 
 export function parseArgs(args) {
   const options = { out: resolve('.local/package-consumer'), offline: false };
@@ -37,9 +46,9 @@ export async function readArchives(directory) {
   for (const filename of entries) {
     assert.match(filename, /^cardano-on-evm-[a-z]+-\d+\.\d+\.\d+\.tgz$/, 'Unexpected archive filename');
     const path = join(directory, filename);
-    assert.ok((await lstat(path)).isFile(), 'Archives must be regular files');
-    const bytes = await readFile(path);
-    const { stdout } = await run('tar', ['-xOf', path, 'package/package.json'], { maxBuffer: 1024 * 1024 });
+    const bytes = await readRegularFile(path);
+    // Inspect the same bytes that are hashed, without reopening the input path.
+    const stdout = execFileSync('tar', ['-xOz', '-f', '-', 'package/package.json'], { input: bytes, encoding: 'utf8', maxBuffer: 1024 * 1024 });
     const meta = JSON.parse(stdout);
     assert.ok(names.includes(meta.name?.split('/')[1]) && meta.name === '@cardano-on-evm/' + meta.name.split('/')[1], 'Unknown package in bundle');
     assert.match(meta.version, /^\d+\.\d+\.\d+$/);
@@ -63,14 +72,17 @@ export async function readArchives(directory) {
 export async function checkConsumer(options) {
   await mkdir(options.out, { recursive: true });
   const reportPath = join(options.out, 'package-install.json');
-  try { await lstat(reportPath); throw new Error('Consumer report exists; use a fresh --out directory'); }
-  catch (error) { if (error.code !== 'ENOENT') throw error; }
+  let reportFile;
+  try { reportFile = await open(reportPath, 'wx'); }
+  catch (error) {
+    if (error.code === 'EEXIST') throw new Error('Consumer report exists; use a fresh --out directory');
+    throw error;
+  }
   const report = { schemaVersion: 1, kind: 'isolated-installed-core-packages', startedAt: new Date().toISOString(), node: process.version, prebuiltArchives: Boolean(options.archives), packages: [], result: {}, allChecksPassed: false };
   let blocker, consumer;
   try {
     if (options.networkGuard) {
-      assert.ok((await lstat(options.networkGuard)).isFile(), 'The runtime network guard must be a regular file');
-      report.networkGuard = { path: options.networkGuard, sha256: sha(await readFile(options.networkGuard)) };
+      report.networkGuard = { path: options.networkGuard, sha256: sha(await readRegularFile(options.networkGuard)) };
     }
     const packs = options.archives ?? join(options.out, 'archives');
     if (!options.archives) {
@@ -147,7 +159,8 @@ export async function checkConsumer(options) {
       report.consumerRemoved = true;
     }
     report.completedAt = new Date().toISOString();
-    await writeFile(reportPath, JSON.stringify(report, null, 2) + '\n');
+    try { await reportFile.writeFile(JSON.stringify(report, null, 2) + '\n'); }
+    finally { await reportFile.close(); }
   }
   console.log(JSON.stringify({ ...report.result, evidence: reportPath }));
   return report;

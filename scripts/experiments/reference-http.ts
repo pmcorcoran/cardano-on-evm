@@ -16,6 +16,9 @@ async function post(path: string, body: unknown, requestOrigin = origin) {
   return fetch(`${origin}${path}`, { method: 'POST', headers: { origin: requestOrigin, 'content-type': 'application/json' }, body: json(body) });
 }
 const results: any[] = [];
+for (const route of ['/state', '/submit', '/status']) {
+  assert.equal((await post(route, {})).status, 400, 'Each session route requires enrollment');
+}
 for (const walletId of ['lace', 'eternl', undefined]) for (const name of ['general', 'targets', 'selectors']) {
   const profile = config.profiles[name]; profile.config.index = BigInt(profile.config.index); let result: any;
   const transport: EnrollmentTransport = {
@@ -23,6 +26,7 @@ for (const walletId of ['lace', 'eternl', undefined]) for (const name of ['gener
     enroll: async (id, signed) => {
       const metadata = walletId ? { walletId, walletName: `GENERATED ${walletId} HTTP TEST`, walletApiVersion: '1' } : {};
       assert.equal((await post(`/enrollment/${name}/enroll`, { id, ...signed, walletId: 'unsupported' })).status, 400);
+      assert.equal((await post(`/enrollment/${name}/enroll`, { id, ...signed, signature: '00' })).status, 400, 'An enrollment route never bypasses signature verification');
       const r = await post(`/enrollment/${name}/enroll`, { id, ...signed, ...metadata, walletVersion: 'GENERATED TEST ONLY', userAgent: 'node HTTP acceptance fixture' });
       result = await r.json(); assert.equal(r.status, 200, result.error); return result;
     },
