@@ -7,13 +7,13 @@
   "description": "Separately installed Alto integration; independent of the core account packages",
   "dependencies": {
     "@pimlico/alto": "0.0.21",
-    "viem": "2.56.3",
+    "viem": "2.56.5",
     "@opentelemetry/instrumentation-fastify": "npm:@fastify/otel@0.21.0"
   },
   "scripts": {
     "prepare:worker": "node scripts/prepare.mjs",
     "start": "node src/run.mjs",
-    "test": "node --test --test-isolation=none tests/*.test.mjs"
+    "test": "node --test --experimental-test-isolation=none tests/*.test.mjs"
   },
   "overrides": {
     "@pimlico/alto": {

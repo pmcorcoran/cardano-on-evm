@@ -80,7 +80,7 @@ try {
     const name = sourceWorker ? 'source' : 'package';
     env.ALTO_TEST_WORKER = name;
     const deployment = `evidence/local/private-bundler-${name}.json`, config = `.local/private-bundler/${name}.json`;
-    await run(`${name}-generated-strict-parser`, ['--test', '--test-isolation=none', 'infra/bundler/tests/strict-validation.test.mjs'], '"strictParserChecksCompleted":true');
+    await run(`${name}-generated-strict-parser`, ['--test', '--experimental-test-isolation=none', 'infra/bundler/tests/strict-validation.test.mjs'], '"strictParserChecksCompleted":true');
     await run(`${name}-runtime-compatibility`, ['infra/bundler/scripts/check-runtime-compatibility.mjs'], '"runtimeCompatibilityPassed":true');
     await run(`${name}-basic-local-execution`, ['node_modules/tsx/dist/cli.mjs', 'scripts/experiments/private-bundler.ts', '--basic-validation', '--policy-fixture', 'evidence/local/policies.json', '--out', deployment, '--config-out', config, ...(sourceWorker ? ['--source-worker'] : [])]);
     await run(`${name}-simulation-bytecode`, ['node_modules/tsx/dist/cli.mjs', 'scripts/experiments/verify-private-simulations.ts', '--deployment', deployment, '--rpc-url', rpcUrl, '--out', `evidence/local/private-simulation-${name}.json`]);
