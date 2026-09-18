@@ -12,7 +12,7 @@
     }
   },
   "dependencies": {
-    "viem": "2.56.3",
+    "viem": "2.56.5",
     "@noble/curves": "2.4.0",
     "@cardano-on-evm/wallet": "0.1.0"
   },
