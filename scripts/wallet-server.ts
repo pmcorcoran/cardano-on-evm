@@ -32,6 +32,49 @@ function operationProbe(id: string) {
   return { ...context, probeHash, payloadHex, submitted: false };
 }
 
+// Routing selects a handler; each signing handler performs its own verification.
+function laboratoryService(body: any) {
+  if (body.network !== 0 && body.network !== 1) throw new Error('Choose a supported Cardano network');
+  const service = services[body.network as 0 | 1]!, store = stores[body.network as 0 | 1];
+  store.prune(Date.now());
+  return { service, store };
+}
+async function captureWallet(body: any) {
+  const { service, store } = laboratoryService(body);
+  if (typeof body.walletRelease !== 'string' || !body.walletRelease.trim() || body.walletRelease.length > 80 || typeof body.userAgent !== 'string' || body.userAgent.length > 512) throw new Error('Wallet release and browser metadata are required');
+  const metadata = walletMetadata(body);
+  const challenge = await store.get(body.id); if (!challenge) throw new Error('Challenge unavailable');
+  if (body.credential && parseCardanoAddress(challenge.cardanoAddress, challenge.cardanoNetwork).credential !== body.credential) throw new Error('Selected credential does not match the challenge');
+  const operation = operationProbe(challenge.id);
+  const verified = verifyCip8Signature(body.operation, { address: challenge.cardanoAddress, network: challenge.cardanoNetwork, payload: fromHex(operation.payloadHex) });
+  const enrollmentSignature = verifyCip8Signature(body.enrollment, { address: challenge.cardanoAddress, network: challenge.cardanoNetwork, payload: fromHex(challenge.payloadHex) });
+  if (toHex(enrollmentSignature.publicKey) !== toHex(verified.publicKey)) throw new Error('Wallet key changed between signatures');
+  if (toHex(enrollmentSignature.protectedHeaders) !== toHex(verified.protectedHeaders)) throw new Error('Wallet protected-header profiles differ between signatures');
+  const enrollment = await service.enroll(body.id, body.enrollment);
+  if (enrollment.publicKey !== toHex(verified.publicKey)) throw new Error('Wallet key changed between signatures');
+  const evidence = {
+    kind: 'operator-wallet-capture', capturedAt: new Date().toISOString(),
+    provenance: 'CIP-30 browser capture; wallet brand and release supplied by the operator; signatures cryptographically verified by server',
+    wallet: { ...metadata, release: body.walletRelease.trim(), userAgent: body.userAgent },
+    enrollment: { challenge, signed: body.enrollment, verified: enrollment },
+    operation: { ...operation, signed: body.operation, protectedHeaders: toHex(verified.protectedHeaders) },
+    onchainValidated: false, liveAccountExecuted: false,
+  };
+  const file = `${captureDirectory}/${challenge.id}.json`;
+  mkdirSync(captureDirectory, { recursive: true }); writeFileSync(file, JSON.stringify(evidence, null, 2) + '\n', { flag: 'wx' });
+  return { file, ...evidence };
+}
+const postHandlers = new Map<string, (body: any) => Promise<unknown>>([
+  ['/live/signature', async (body) => live.capture(body)],
+  ['/lab/challenge', async (body) => {
+    const { service } = laboratoryService(body);
+    if (body.credential && parseCardanoAddress(body.address, body.network).credential !== body.credential) throw new Error('Selected credential does not match the address');
+    const challenge = await service.issue(body.address);
+    return { ...challenge, operation: operationProbe(challenge.id) };
+  }],
+  ['/lab/capture', captureWallet],
+]);
+
 const server = createServer(async (req, res) => {
   const send = (status: number, body: unknown) => { res.writeHead(status, { 'content-type': 'application/json', 'cache-control': 'no-store' }); res.end(JSON.stringify(body)); };
   try {
@@ -46,39 +89,12 @@ const server = createServer(async (req, res) => {
     let size = 0; const chunks = [];
     for await (const chunk of req) { size += chunk.length; if (size > 40_000) throw new Error('Request too large'); chunks.push(chunk); }
     const body = JSON.parse(Buffer.concat(chunks).toString());
-    if (req.url === '/live/signature') { send(200, live.capture(body)); return; }
-    if (body.network !== 0 && body.network !== 1) throw new Error('Choose a supported Cardano network');
-    const service = services[body.network]!; const store = stores[body.network as 0 | 1];
-    store.prune(Date.now());
-    if (req.url === '/lab/challenge') {
-      if (body.credential && parseCardanoAddress(body.address, body.network).credential !== body.credential) throw new Error('Selected credential does not match the address');
-      const challenge = await service.issue(body.address); send(200, { ...challenge, operation: operationProbe(challenge.id) }); return;
+    const handler = postHandlers.get(req.url ?? '');
+    if (!handler) {
+      laboratoryService(body);
+      send(404, { error: 'Unknown laboratory endpoint' }); return;
     }
-    if (req.url === '/lab/capture') {
-      if (typeof body.walletRelease !== 'string' || !body.walletRelease.trim() || body.walletRelease.length > 80 || typeof body.userAgent !== 'string' || body.userAgent.length > 512) throw new Error('Wallet release and browser metadata are required');
-      const metadata = walletMetadata(body);
-      const challenge = await store.get(body.id); if (!challenge) throw new Error('Challenge unavailable');
-      if (body.credential && parseCardanoAddress(challenge.cardanoAddress, challenge.cardanoNetwork).credential !== body.credential) throw new Error('Selected credential does not match the challenge');
-      const operation = operationProbe(challenge.id);
-      const verified = verifyCip8Signature(body.operation, { address: challenge.cardanoAddress, network: challenge.cardanoNetwork, payload: fromHex(operation.payloadHex) });
-      const enrollmentSignature = verifyCip8Signature(body.enrollment, { address: challenge.cardanoAddress, network: challenge.cardanoNetwork, payload: fromHex(challenge.payloadHex) });
-      if (toHex(enrollmentSignature.publicKey) !== toHex(verified.publicKey)) throw new Error('Wallet key changed between signatures');
-      if (toHex(enrollmentSignature.protectedHeaders) !== toHex(verified.protectedHeaders)) throw new Error('Wallet protected-header profiles differ between signatures');
-      const enrollment = await service.enroll(body.id, body.enrollment);
-      if (enrollment.publicKey !== toHex(verified.publicKey)) throw new Error('Wallet key changed between signatures');
-      const evidence = {
-        kind: 'operator-wallet-capture', capturedAt: new Date().toISOString(),
-        provenance: 'CIP-30 browser capture; wallet brand and release supplied by the operator; signatures cryptographically verified by server',
-        wallet: { ...metadata, release: body.walletRelease.trim(), userAgent: body.userAgent },
-        enrollment: { challenge, signed: body.enrollment, verified: enrollment },
-        operation: { ...operation, signed: body.operation, protectedHeaders: toHex(verified.protectedHeaders) },
-        onchainValidated: false, liveAccountExecuted: false,
-      };
-      const file = `${captureDirectory}/${challenge.id}.json`;
-      mkdirSync(captureDirectory, { recursive: true }); writeFileSync(file, JSON.stringify(evidence, null, 2) + '\n', { flag: 'wx' });
-      send(200, { file, ...evidence }); return;
-    }
-    send(404, { error: 'Unknown laboratory endpoint' });
+    send(200, await handler(body));
   } catch (error) { send(400, { error: error instanceof Error ? error.message : 'Capture failed' }); }
 });
 server.listen(port, '127.0.0.1', () => console.log(`Wallet laboratory: ${origin}`));
