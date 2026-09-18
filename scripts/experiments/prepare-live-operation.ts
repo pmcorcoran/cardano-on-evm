@@ -1,5 +1,5 @@
 import { parseArgs } from 'node:util';
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import { encodeFunctionData, keccak256, parseEther, toHex, type Abi, type Address, type Hex } from 'viem';
 import { entryPoint07Abi } from 'viem/account-abstraction';
@@ -40,15 +40,20 @@ try {
   if (predicted.toLowerCase() !== identity.account.toLowerCase()) throw new Error('Live factory prediction disagrees');
   const identityFile = `${values.out}/identity-${identity.account.toLowerCase()}.json`;
   mkdirSync(values.out, { recursive: true });
-  const previousIdentity = existsSync(identityFile) ? readTableIdentityManifest(identityFile) : {};
+  let previousIdentity;
+  try { previousIdentity = readTableIdentityManifest(identityFile); }
+  catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT' || (error as NodeJS.ErrnoException).path !== identityFile) throw error; }
+  previousIdentity ??= {};
   if (previousIdentity.identity && json(previousIdentity.identity).toLowerCase() !== json(identity).toLowerCase()) throw new Error('Saved account identity changed');
-  if (!existsSync(identityFile)) writeFileSync(identityFile, json({ kind: 'sdk-backend-live-factory-identity-agreement', timestamp: new Date().toISOString(), addressDerivationMode: 'portable', chainId: config.chainId, artifactBinding: bindAddressArtifacts(config), config, identity, backend, liveFactoryPrediction: predicted, agreement: true, sourceCapture: stake.capture, deployedAccountChecked: false }), { flag: 'wx' });
+  if (!previousIdentity.identity) writeFileSync(identityFile, json({ kind: 'sdk-backend-live-factory-identity-agreement', timestamp: new Date().toISOString(), addressDerivationMode: 'portable', chainId: config.chainId, artifactBinding: bindAddressArtifacts(config), config, identity, backend, liveFactoryPrediction: predicted, agreement: true, sourceCapture: stake.capture, deployedAccountChecked: false }), { flag: 'wx' });
   const nonce = await client.readContract({ address: entryPoint, abi: entryPoint07Abi, functionName: 'getNonce', args: [identity.account, 0n] });
   const code = await client.getCode({ address: identity.account }); const first = !code || code === '0x';
   const requestKey = `${identity.account.toLowerCase()}-${nonce}-${values.mode}-${values.action}`;
   const pointer = `${values.out}/request-${requestKey}.json`;
-  if (existsSync(pointer)) {
-    const previous = JSON.parse(readFileSync(pointer, 'utf8'));
+  let previous;
+  try { previous = JSON.parse(readFileSync(pointer, 'utf8')); }
+  catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
+  if (previous !== undefined) {
     const saved = JSON.parse(readFileSync(previous.file, 'utf8')), savedOperation = checkLiveRequest(saved);
     if (previous.identityFile !== identityFile || saved.id !== previous.id || saved.mode !== values.mode || savedOperation.nonce !== nonce || savedOperation.sender.toLowerCase() !== identity.account.toLowerCase() || saved.publicKey.toLowerCase() !== identity.publicKey.toLowerCase() || saved.protectedHeaderHash !== keccak256(identity.protectedHeaders)) throw new Error('Saved request differs from the selected account');
     console.log(json({ status: 'request-already-prepared', ...previous }));

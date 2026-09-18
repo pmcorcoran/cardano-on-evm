@@ -1,6 +1,6 @@
 import './errors.js';
 import assert from 'node:assert/strict';
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
+import { writeFileSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { parseArgs } from 'node:util';
 import { keccak256, type Abi, type Address } from 'viem';
@@ -18,7 +18,10 @@ assert.equal(manifest.infrastructureVerified, true, 'Deploy and verify the suppl
 assert.ok(!manifest.testData, 'Generated loopback fixtures cannot prepare public infrastructure');
 const { enrollment: verified, challenge, sha256: captureSha256 } = readWalletCapture(values.capture!);
 assert.equal(challenge.baseChainId, manifest.chainId, 'Capture and manifest chains differ');
-const state: any = existsSync(values.out!) ? readProfileManifest(values.out!) : { ...manifest, profiles: {}, kind: 'prepared-profile-manifest', createdAt: new Date().toISOString() };
+let state: any;
+try { state = readProfileManifest(values.out!); }
+catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT' || (error as NodeJS.ErrnoException).path !== values.out) throw error; }
+state ??= { ...manifest, profiles: {}, kind: 'prepared-profile-manifest', createdAt: new Date().toISOString() };
 assert.equal(state.chainId, manifest.chainId); assert.deepEqual(state.artifactIdentity, manifest.artifactIdentity);
 const context = await liveContext(values['key-file']!, values['key-variable']!, { manifest: values.infrastructure!, journal: values.journal!, independentSubmitter: true });
 try {
