@@ -44,7 +44,7 @@
   "devDependencies": {
     "@changesets/cli": "3.0.3",
     "@types/node": "24.3.1",
-    "esbuild": "0.25.12",
+    "esbuild": "0.28.2",
     "solc": "0.8.30",
     "tsx": "4.20.5",
     "typescript": "5.9.2"
