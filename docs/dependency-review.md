@@ -5,6 +5,46 @@ lockfiles. The security policy evaluates every severity with no dependency
 exceptions. Audits are time-sensitive; rerun the commands below for each change.
 This review is not an independent security audit or a guarantee of safety.
 
+## Deferred major upgrades
+
+The following reviews retain the supported Node 22.18.0 floor and the pinned
+Alto source. The package-specific major-version filters in
+[Dependabot configuration](../.github/dependabot.yml) leave minor, patch, and
+[security updates enabled](https://github.blog/changelog/2021-05-21-dependabot-version-updates-can-now-ignore-major-minor-patch-releases/).
+They do not change the all-severity audit policy. Remove each filter only with
+its reviewed replacement and the validation described below.
+
+- [Node types #1](https://github.com/pmcorcoran/cardano-on-evm/pull/1): defer
+  Node 26 declarations until an API review rules out accidental reliance on
+  newer runtime APIs. Check declarations and isolated package consumers on
+  Node 22.18, 24, and 26 while preserving the public API and address fixtures.
+- [TypeScript #12](https://github.com/pmcorcoran/cardano-on-evm/pull/12) and
+  [#13](https://github.com/pmcorcoran/cardano-on-evm/pull/13): defer TypeScript 7
+  as a coordinated compiler migration across the root and Alto build tools.
+  Alto's pinned configuration uses `moduleResolution: "node"`, which TypeScript
+  7 removes. Select and validate compatible module resolution and imports
+  without editing vendored source or compiler/bytecode fixtures. Require the
+  supported Node matrix, declarations, isolated consumers, a fresh Alto source
+  rebuild with all nine bytecode comparisons, and worker regressions. This
+  compiler migration is outside the dependency review goal.
+- [pyee #11](https://github.com/pmcorcoran/cardano-on-evm/pull/11): close as
+  incompatible. Playwright 1.62.0 requires `pyee>=13,<14`; the resolver rejects
+  the proposed pyee 14 combination. Revisit when a reviewed Playwright release
+  supports pyee 14, regenerate the complete hash-locked Python 3.13 dependency
+  set, and pass browser acceptance and the failure-capture regression.
+- [App Token #16](https://github.com/pmcorcoran/cardano-on-evm/pull/16): defer
+  while the version-workflow App is unconfigured. Configure a repository-scoped
+  App with contents and pull-request write permission and a `version-pr`
+  environment restricted to main, then set `VERSION_APP_ID` and the environment
+  secret `VERSION_APP_PRIVATE_KEY` through GitHub settings. Never include the
+  private key in review comments or evidence. Enable the controlled version
+  workflow and verify the App identity, repository scope, coordinated version
+  changes, and resulting PR's ordinary CI. Correct the stale action-version
+  comment when upgrading. A skipped workflow does not validate the action;
+  release publication must remain disabled. See the
+  [version workflow](../.github/workflows/version.yml) and
+  [CI runbook](github-cicd.md).
+
 ## Coordinated runtime migration
 
 On 2026-09-17, fresh audits found no root or build-tool vulnerabilities and 36
