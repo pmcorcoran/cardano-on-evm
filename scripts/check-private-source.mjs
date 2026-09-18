@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import { openSync, closeSync } from 'node:fs';
+import { openSync, closeSync, readSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { spawn } from 'node:child_process';
 import { parseArgs } from 'node:util';
@@ -29,18 +29,26 @@ async function stop(child) {
   try { process.kill(-child.pid, 'SIGKILL'); } catch (error) { if (error.code !== 'ESRCH') throw error; }
 }
 async function run(name, args, requiredLog) {
-  const file = resolve(logs, `${name}.log`), descriptor = openSync(file, 'w');
-  let code;
+  const file = resolve(logs, `${name}.log`), descriptor = openSync(file, 'wx+');
+  let code, output;
   try {
     const child = spawn(process.execPath, args, { env, detached: true, stdio: ['ignore', descriptor, descriptor] });
     children.push(child);
     const timer = setTimeout(() => { void stop(child); }, 300000);
     try { code = await new Promise((resolve, reject) => { child.once('error', reject); child.once('exit', resolve); }); }
     finally { clearTimeout(timer); }
+    // Read through the owned descriptor; the path cannot be substituted.
+    const chunks = [], buffer = Buffer.alloc(65536);
+    for (let position = 0; ;) {
+      const count = readSync(descriptor, buffer, 0, buffer.length, position);
+      if (!count) break;
+      chunks.push(Buffer.from(buffer.subarray(0, count))); position += count;
+    }
+    output = Buffer.concat(chunks).toString('utf8');
   } finally { closeSync(descriptor); }
   report.steps.push({ name, command: [process.execPath, ...args], exitCode: code, log: `logs/${name}.log` }); await save();
-  if (code !== 0) { process.stderr.write((await readFile(file, 'utf8')).slice(-12000)); throw new Error(`${name} failed`); }
-  if (requiredLog) assert.ok((await readFile(file, 'utf8')).includes(requiredLog), `${name} did not complete the required checks`);
+  if (code !== 0) { process.stderr.write(output.slice(-12000)); throw new Error(`${name} failed`); }
+  if (requiredLog) assert.ok(output.includes(requiredLog), `${name} did not complete the required checks`);
   console.log(`${name} passed`);
 }
 let evm;

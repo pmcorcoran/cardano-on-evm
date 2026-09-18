@@ -14,6 +14,8 @@ for (const walletId of ['lace', 'eternl', undefined]) for (const type of [14, 0]
   assert.equal(challengeResponse.status, 200); const challenge = await challengeResponse.json();
   assert.equal(fromHex(challenge.operation.payloadHex).length, 32);
   const body = { id: challenge.id, network: 0, credential, ...(walletId ? { walletId, walletName: `GENERATED ${walletId} HTTP TEST`, walletApiVersion: '1' } : {}), walletRelease: 'GENERATED TEST ONLY', userAgent: 'node loopback HTTP acceptance', enrollment: signFixture(fromHex(challenge.payloadHex), address, undefined, true), operation: signFixture(fromHex(challenge.operation.payloadHex), address, undefined, true) };
+  assert.equal((await post('/lab/capture/', body)).status, 404, 'Unknown routes cannot capture signatures');
+  assert.equal((await post('/lab/capture', { ...body, operation: undefined })).status, 400, 'Capture always requires the operation signature');
   const mismatch = await post('/lab/capture', { ...body, operation: signFixture(fromHex(challenge.operation.payloadHex), address) });
   assert.equal(mismatch.status, 400); assert.match((await mismatch.json()).error, /protected-header profiles differ/);
   assert.equal((await post('/lab/capture', { ...body, walletId: 'unknown' })).status, 400);

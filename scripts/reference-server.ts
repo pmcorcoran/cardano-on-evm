@@ -56,6 +56,115 @@ async function state(account: CardanoAccount) {
   ]);
   return { address, deployed: Boolean(code && code !== '0x'), prepared: Boolean(prepared && prepared !== '0x'), nonce, balance, deposit, preparation: accountPreparation(account) };
 }
+// Route selection never substitutes for session and signature verification.
+type PostResponse = { status: number; data: unknown };
+type PostHandler = (body: any) => Promise<PostResponse>;
+function requireSession(body: any) {
+  const session = sessions.get(body.sessionId);
+  if (!session || Date.now() >= session.expiresAt) throw new Error('Enrollment session expired; enroll again');
+  return session;
+}
+async function handleEnrollment(name: string, action: 'challenge' | 'enroll', body: any): Promise<PostResponse> {
+  const service = services[name]!;
+  const metadata = walletMetadata(body);
+  if (action === 'enroll' && body.walletId !== undefined && (typeof body.walletVersion !== 'string' || !body.walletVersion.trim() || body.walletVersion.length > 80 || typeof body.userAgent !== 'string' || body.userAgent.length > 512)) throw new Error('Wallet release and browser metadata required');
+  service.store.prune(Date.now());
+  const challenge = action === 'enroll' && typeof body.id === 'string' ? await service.store.get(body.id) : undefined;
+  const enrollmentBody = action === 'challenge' ? { address: body.address } : { id: body.id, signature: body.signature, key: body.key };
+  const response = await service.handler(new Request(`${origin}/${action}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(enrollmentBody) }));
+  const data = await response.json();
+  if (response.ok && challenge) {
+    for (const [id, session] of sessions) if (Date.now() >= session.expiresAt) sessions.delete(id);
+    if (sessions.size >= 100) throw new Error('Reference session limit');
+    const signed = { signature: body.signature, key: body.key };
+    const verified = verifyCip8Signature(signed, { address: challenge.cardanoAddress, network: 0, payload: fromHex(challenge.payloadHex) });
+    const account = accountFromVerifiedKey(verified, profiles[name]!.config);
+    const sessionId = randomBytes(32).toString('hex');
+    const file = `${values['evidence-dir']}/enrollment-${challenge.id}.json`; mkdirSync(values['evidence-dir']!, { recursive: true });
+    writeFileSync(file, json({ kind: 'reference-application-enrollment', testData: testFixture, profile: name, challenge, signed, verified: data, sdkAccount: account, configBound: true, source: testFixture ? 'Generated loopback test wallet; no deployed infrastructure or public-chain acceptance' : 'CIP-30 browser; cryptographically verified and atomically consumed; wallet metadata is reported provenance, not brand authentication', wallet: { ...metadata, release: String(body.walletVersion ?? '').trim().slice(0, 80), userAgent: String(body.userAgent ?? '').slice(0, 512) } }), { flag: 'wx' });
+    sessions.set(sessionId, { account, profile: name, enrollmentFile: file, expiresAt: Date.now() + 2 * 60 * 60 * 1000, wallet: metadata });
+    data.sessionId = sessionId; data.enrollmentFile = file;
+  }
+  return { status: response.status, data };
+}
+async function handleSubmit(body: any): Promise<PostResponse> {
+  const session = requireSession(body);
+  const metadata = walletMetadata(body);
+  if (session.wallet.id !== undefined && metadata.id !== session.wallet.id) throw new Error('Selected wallet differs from enrollment; enroll again');
+  if (testFixture) throw new Error('Generated loopback fixtures cannot submit transactions');
+  if (!availableModes.includes(body.mode)) throw new Error('Submission mode unavailable');
+  const account = session.account, operation = operationFromJson(body.operation);
+  if (getAddress(operation.sender) !== getAddress(account.identity.account) || operation.paymaster) throw new Error('Operation identity or sponsor differs');
+  if (operation.factory && (getAddress(operation.factory) !== getAddress(accountFactory(account)) || operation.factoryData !== account.identity.factoryData)) throw new Error('Deployment configuration differs');
+  if (operation.verificationGasLimit > 500000n || operation.callGasLimit > 250000n || operation.preVerificationGas > 100000n || (operation.verificationGasLimit + operation.callGasLimit + operation.preVerificationGas) * operation.maxFeePerGas > 42500000000000n) throw new Error('Reference operation gas cap exceeded');
+  const calls = account.profile === 'restricted' ? decodeRestrictedCalls(operation.callData) : decodeCalls(operation.callData);
+  if (calls.reduce((sum, call) => sum + call.value, 0n) > 100000000000n) throw new Error('Reference transfer cap exceeded');
+  const payload = operationPayload(operation, 84532, entryPoint);
+  const verified = verifyCip8Signature(body.authorization, { address: account.cardanoAddress, network: account.cardanoNetwork, payload: fromHex(payload) });
+  if (toHex(verified.publicKey) !== account.publicKey || keccak256(verified.protectedHeaders) !== account.protectedHeaderHash || validatorSignature(verified) !== operation.signature) throw new Error('Operation signature differs from enrollment');
+  const hash = operationHash(operation, 84532, entryPoint);
+  const known = operations.get(hash);
+  if (known) {
+    if (known.sessionId !== body.sessionId) throw new Error('This authorization is already tracked by another enrollment session');
+    return { status: 200, data: { hash, mode: known.mode, status: known.status, submission: known.submission } };
+  }
+  if (operations.size >= 1000) throw new Error('Reference operation limit reached; preserve the evidence and restart this demonstration');
+  const current = await state(account);
+  if (!current.prepared) throw new Error('An operator must submit the permissionless preparation intent before this account can deploy');
+  if (current.nonce !== operation.nonce) throw new Error('Account nonce changed; construct and review a new operation');
+  const context: OperationContext = { chainId: 84532, entryPoint, operation };
+  const file = `${values['evidence-dir']}/operation-${hash.slice(2)}.json`;
+  const record = { context, mode: body.mode as Submission['mode'], sessionId: body.sessionId, file, status: 'broadcast-result-unknown' } as NonNullable<ReturnType<typeof operations.get>>;
+  const persist = () => writeFileSync(file, json({ kind: 'reference-application-operation', enrollmentFile: session.enrollmentFile, profile: session.profile, wallet: { ...metadata, release: String(body.walletVersion ?? '').trim().slice(0, 80), userAgent: String(body.userAgent ?? '').slice(0, 512) }, context, authorization: body.authorization, mode: record.mode, submission: record.submission, status: record.status, directJournal: record.directJournal }));
+  if (existsSync(file)) throw new Error('This authorization already has saved evidence; inspect its hash and receipt before retrying after a server restart');
+  operations.set(hash, record); persist();
+  let live: Awaited<ReturnType<typeof liveContext>> | undefined;
+  try {
+    let adapter: SubmissionAdapter;
+    if (body.mode === 'public') adapter = publicAdapter;
+    else if (body.mode === 'private') adapter = privateAdapter!;
+    else {
+      live = await liveContext(values['key-file']!, values['key-variable']!, { manifest: values['infrastructure-manifest']!, journal: values.journal!, independentSubmitter: true });
+      record.directJournal = live.journalFile; persist();
+      const context = live;
+      adapter = createDirectAdapter({ rpc: networkRpc, submitter: context.account.address, sendTransaction: async (intent) => (await context.transact(`reference-${hash}`, intent, true))!.transactionHash });
+    }
+    record.submission = await adapter.submit(context); record.status = 'submitted'; persist();
+  } catch (error) { persist(); throw error; } finally { live?.release(); }
+  return { status: 200, data: { hash, mode: record.mode, status: record.status, submission: record.submission } };
+}
+async function handleStatus(body: any): Promise<PostResponse> {
+  const session = requireSession(body);
+  const record = operations.get(body.hash);
+  if (!record || record.sessionId !== body.sessionId) throw new Error('Unknown operation in this session');
+  let submission = record.submission;
+  if (!submission && record.mode === 'direct' && record.directJournal && existsSync(record.directJournal)) {
+    const journal = JSON.parse(readFileSync(record.directJournal, 'utf8'));
+    const tx = journal.transactions[`reference-${body.hash}`];
+    if (tx) submission = { mode: 'direct', userOperationHash: body.hash, transactionHash: tx.transactionHash };
+  }
+  submission ??= { mode: record.mode, userOperationHash: body.hash };
+  let included;
+  if (record.mode === 'direct') included = submission.transactionHash ? inclusionFromReceipt(record.context, await canonicalReceipt(client, submission.transactionHash)) : { status: 'pending', userOperationHash: body.hash };
+  else included = await (record.mode === 'public' ? publicAdapter : privateAdapter!).status(record.context, submission);
+  if (included.transactionHash) {
+    included = inclusionFromReceipt(record.context, await canonicalReceipt(client, included.transactionHash));
+    record.status = included.status;
+    const evidence = JSON.parse(readFileSync(record.file, 'utf8')); evidence.inclusion = included; evidence.status = included.status; evidence.independentlyObservedThroughBaseRpc = true; writeFileSync(record.file, json(evidence));
+  }
+  return { status: 200, data: included };
+}
+const postHandlers = new Map<string, PostHandler>([
+  ['/state', async (body) => ({ status: 200, data: await state(requireSession(body).account) })],
+  ['/submit', handleSubmit],
+  ['/status', handleStatus],
+]);
+for (const name of ['general', 'targets', 'selectors']) {
+  for (const action of ['challenge', 'enroll'] as const) {
+    postHandlers.set(`/enrollment/${name}/${action}`, (body) => handleEnrollment(name, action, body));
+  }
+}
+
 const server = createServer(async (req, res) => {
   const send = (status: number, data: unknown) => { res.writeHead(status, { 'content-type': 'application/json', 'cache-control': 'no-store' }); res.end(json(data)); };
   if (req.headers.host !== `127.0.0.1:${port}`) return send(403, { error: 'Unexpected host' });
@@ -73,99 +182,13 @@ const server = createServer(async (req, res) => {
     for await (const chunk of req) { size += chunk.length; if (size > 65536) throw new Error('Request too large'); chunks.push(chunk); }
     const body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
     if (!body || typeof body !== 'object' || Array.isArray(body)) throw new Error('Expected request object');
-    const enrollment = req.url?.match(/^\/enrollment\/(general|targets|selectors)\/(challenge|enroll)$/);
-    if (enrollment) {
-      const name = enrollment[1]!, action = enrollment[2]!, service = services[name]!;
-      const metadata = walletMetadata(body);
-      if (action === 'enroll' && body.walletId !== undefined && (typeof body.walletVersion !== 'string' || !body.walletVersion.trim() || body.walletVersion.length > 80 || typeof body.userAgent !== 'string' || body.userAgent.length > 512)) throw new Error('Wallet release and browser metadata required');
-      service.store.prune(Date.now());
-      const challenge = action === 'enroll' && typeof body.id === 'string' ? await service.store.get(body.id) : undefined;
-      const enrollmentBody = action === 'challenge' ? { address: body.address } : { id: body.id, signature: body.signature, key: body.key };
-      const response = await service.handler(new Request(`${origin}/${action}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(enrollmentBody) }));
-      const data = await response.json();
-      if (response.ok && challenge) {
-        for (const [id, session] of sessions) if (Date.now() >= session.expiresAt) sessions.delete(id);
-        if (sessions.size >= 100) throw new Error('Reference session limit');
-        const signed = { signature: body.signature, key: body.key };
-        const verified = verifyCip8Signature(signed, { address: challenge.cardanoAddress, network: 0, payload: fromHex(challenge.payloadHex) });
-        const account = accountFromVerifiedKey(verified, profiles[name]!.config);
-        const sessionId = randomBytes(32).toString('hex');
-        const file = `${values['evidence-dir']}/enrollment-${challenge.id}.json`; mkdirSync(values['evidence-dir']!, { recursive: true });
-        writeFileSync(file, json({ kind: 'reference-application-enrollment', testData: testFixture, profile: name, challenge, signed, verified: data, sdkAccount: account, configBound: true, source: testFixture ? 'Generated loopback test wallet; no deployed infrastructure or public-chain acceptance' : 'CIP-30 browser; cryptographically verified and atomically consumed; wallet metadata is reported provenance, not brand authentication', wallet: { ...metadata, release: String(body.walletVersion ?? '').trim().slice(0, 80), userAgent: String(body.userAgent ?? '').slice(0, 512) } }), { flag: 'wx' });
-        sessions.set(sessionId, { account, profile: name, enrollmentFile: file, expiresAt: Date.now() + 2 * 60 * 60 * 1000, wallet: metadata });
-        data.sessionId = sessionId; data.enrollmentFile = file;
-      }
-      return send(response.status, data);
+    const handler = postHandlers.get(req.url ?? '');
+    if (!handler) {
+      requireSession(body);
+      return send(404, { error: 'Unknown reference route' });
     }
-    const session = sessions.get(body.sessionId);
-    if (!session || Date.now() >= session.expiresAt) throw new Error('Enrollment session expired; enroll again');
-    if (req.url === '/state') return send(200, await state(session.account));
-    if (req.url === '/submit') {
-      const metadata = walletMetadata(body);
-      if (session.wallet.id !== undefined && metadata.id !== session.wallet.id) throw new Error('Selected wallet differs from enrollment; enroll again');
-      if (testFixture) throw new Error('Generated loopback fixtures cannot submit transactions');
-      if (!availableModes.includes(body.mode)) throw new Error('Submission mode unavailable');
-      const account = session.account, operation = operationFromJson(body.operation);
-      if (getAddress(operation.sender) !== getAddress(account.identity.account) || operation.paymaster) throw new Error('Operation identity or sponsor differs');
-      if (operation.factory && (getAddress(operation.factory) !== getAddress(accountFactory(account)) || operation.factoryData !== account.identity.factoryData)) throw new Error('Deployment configuration differs');
-      if (operation.verificationGasLimit > 500000n || operation.callGasLimit > 250000n || operation.preVerificationGas > 100000n || (operation.verificationGasLimit + operation.callGasLimit + operation.preVerificationGas) * operation.maxFeePerGas > 42500000000000n) throw new Error('Reference operation gas cap exceeded');
-      const calls = account.profile === 'restricted' ? decodeRestrictedCalls(operation.callData) : decodeCalls(operation.callData);
-      if (calls.reduce((sum, call) => sum + call.value, 0n) > 100000000000n) throw new Error('Reference transfer cap exceeded');
-      const payload = operationPayload(operation, 84532, entryPoint);
-      const verified = verifyCip8Signature(body.authorization, { address: account.cardanoAddress, network: account.cardanoNetwork, payload: fromHex(payload) });
-      if (toHex(verified.publicKey) !== account.publicKey || keccak256(verified.protectedHeaders) !== account.protectedHeaderHash || validatorSignature(verified) !== operation.signature) throw new Error('Operation signature differs from enrollment');
-      const hash = operationHash(operation, 84532, entryPoint);
-      const known = operations.get(hash);
-      if (known) {
-        if (known.sessionId !== body.sessionId) throw new Error('This authorization is already tracked by another enrollment session');
-        return send(200, { hash, mode: known.mode, status: known.status, submission: known.submission });
-      }
-      if (operations.size >= 1000) throw new Error('Reference operation limit reached; preserve the evidence and restart this demonstration');
-      const current = await state(account);
-      if (!current.prepared) throw new Error('An operator must submit the permissionless preparation intent before this account can deploy');
-      if (current.nonce !== operation.nonce) throw new Error('Account nonce changed; construct and review a new operation');
-      const context: OperationContext = { chainId: 84532, entryPoint, operation };
-      const file = `${values['evidence-dir']}/operation-${hash.slice(2)}.json`;
-      const record = { context, mode: body.mode as Submission['mode'], sessionId: body.sessionId, file, status: 'broadcast-result-unknown' } as NonNullable<ReturnType<typeof operations.get>>;
-      const persist = () => writeFileSync(file, json({ kind: 'reference-application-operation', enrollmentFile: session.enrollmentFile, profile: session.profile, wallet: { ...metadata, release: String(body.walletVersion ?? '').trim().slice(0, 80), userAgent: String(body.userAgent ?? '').slice(0, 512) }, context, authorization: body.authorization, mode: record.mode, submission: record.submission, status: record.status, directJournal: record.directJournal }));
-      if (existsSync(file)) throw new Error('This authorization already has saved evidence; inspect its hash and receipt before retrying after a server restart');
-      operations.set(hash, record); persist();
-      let live: Awaited<ReturnType<typeof liveContext>> | undefined;
-      try {
-        let adapter: SubmissionAdapter;
-        if (body.mode === 'public') adapter = publicAdapter;
-        else if (body.mode === 'private') adapter = privateAdapter!;
-        else {
-          live = await liveContext(values['key-file']!, values['key-variable']!, { manifest: values['infrastructure-manifest']!, journal: values.journal!, independentSubmitter: true });
-          record.directJournal = live.journalFile; persist();
-          const context = live;
-          adapter = createDirectAdapter({ rpc: networkRpc, submitter: context.account.address, sendTransaction: async (intent) => (await context.transact(`reference-${hash}`, intent, true))!.transactionHash });
-        }
-        record.submission = await adapter.submit(context); record.status = 'submitted'; persist();
-      } catch (error) { persist(); throw error; } finally { live?.release(); }
-      return send(200, { hash, mode: record.mode, status: record.status, submission: record.submission });
-    }
-    if (req.url === '/status') {
-      const record = operations.get(body.hash);
-      if (!record || record.sessionId !== body.sessionId) throw new Error('Unknown operation in this session');
-      let submission = record.submission;
-      if (!submission && record.mode === 'direct' && record.directJournal && existsSync(record.directJournal)) {
-        const journal = JSON.parse(readFileSync(record.directJournal, 'utf8'));
-        const tx = journal.transactions[`reference-${body.hash}`];
-        if (tx) submission = { mode: 'direct', userOperationHash: body.hash, transactionHash: tx.transactionHash };
-      }
-      submission ??= { mode: record.mode, userOperationHash: body.hash };
-      let included;
-      if (record.mode === 'direct') included = submission.transactionHash ? inclusionFromReceipt(record.context, await canonicalReceipt(client, submission.transactionHash)) : { status: 'pending', userOperationHash: body.hash };
-      else included = await (record.mode === 'public' ? publicAdapter : privateAdapter!).status(record.context, submission);
-      if (included.transactionHash) {
-        included = inclusionFromReceipt(record.context, await canonicalReceipt(client, included.transactionHash));
-        record.status = included.status;
-        const evidence = JSON.parse(readFileSync(record.file, 'utf8')); evidence.inclusion = included; evidence.status = included.status; evidence.independentlyObservedThroughBaseRpc = true; writeFileSync(record.file, json(evidence));
-      }
-      return send(200, included);
-    }
-    send(404, { error: 'Unknown reference route' });
+    const response = await handler(body);
+    send(response.status, response.data);
   } catch (error) { send(400, { error: publicError(error) }); }
   finally { active--; }
 });
