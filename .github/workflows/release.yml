@@ -133,13 +133,13 @@ jobs:
           EXPECTED_VERSION: ${{ needs.resolve.outputs.version }}
         run: node scripts/release/candidate.mjs identity .local/candidate/assets
       - id: upload
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: release-payload-${{ github.run_id }}-${{ github.run_attempt }}
           path: .local/candidate/assets
           retention-days: 90
           if-no-files-found: error
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: release-packaging-evidence-${{ github.run_id }}-${{ github.run_attempt }}
@@ -199,7 +199,7 @@ jobs:
           BUNDLE_PATH: ${{ steps.attest.outputs.bundle-path }}
         run: node scripts/release/candidate.mjs seal .local/approved-candidate "$BUNDLE_PATH"
       - id: upload
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: release-candidate-${{ github.run_id }}-${{ github.run_attempt }}
           path: .local/approved-candidate
@@ -245,7 +245,7 @@ jobs:
         run: |
           npm install --global npm@11.19.0 --ignore-scripts
           node scripts/release/candidate.mjs consumer .local/review-candidate
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: release-review-${{ github.run_id }}-${{ github.run_attempt }}
@@ -294,7 +294,7 @@ jobs:
         run: node scripts/release/candidate.mjs fetch .local/publish-candidate
       - name: Verify, create/reuse draft, upload missing assets, download and verify, then publish
         run: node scripts/release/publish.mjs publish .local/publish-candidate
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: release-publication-${{ github.run_id }}-${{ github.run_attempt }}
