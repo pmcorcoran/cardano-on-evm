@@ -2,7 +2,7 @@ import { readProfileManifest } from '../lib/identity-manifest.js';
 import './errors.js';
 import assert from 'node:assert/strict';
 import { parseArgs } from 'node:util';
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import { createPublicClient, http, encodeFunctionData, parseEther, type Abi, type Address, type Hex } from 'viem';
 import { baseSepolia } from 'viem/chains';
@@ -45,8 +45,10 @@ const nonce = currentNonce + nonceOffset;
 const code = await client.getCode({ address: identity.account }); const deploy = !code || code === '0x';
 assert.ok(!deploy || nonceOffset === 0n, 'Deploy the account before preparing a future nonce');
 const pointer = `${values.out}/request-profile-${values.profile}-${nonce}-${values.mode}-${values.action}.json`;
-if (existsSync(pointer)) {
-  const previous = JSON.parse(readFileSync(pointer, 'utf8'));
+let previous;
+try { previous = JSON.parse(readFileSync(pointer, 'utf8')); }
+catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
+if (previous !== undefined) {
   const saved = JSON.parse(readFileSync(previous.file, 'utf8'));
   const savedOperation = checkLiveRequest(saved);
   assert.equal(saved.id, previous.id); assert.equal(saved.mode, values.mode);

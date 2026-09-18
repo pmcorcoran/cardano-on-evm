@@ -1,7 +1,8 @@
 # Requirements and validation mapping
 
-The [RFP](../rfp.md) records the broader product requirements. The initial local
-`0.1.0` release scope and concrete gates are defined in [acceptance](acceptance.md).
+The table below records the broader product requirements and retains their
+original section identifiers. The initial local `0.1.0` release scope and
+concrete gates are defined in [acceptance](acceptance.md).
 Real-wallet sessions, named provider admission, public network deployments and
 publication require separate operator acceptance; local generated data does not
 claim those outcomes. Current pass/failure status belongs to source-bound run
