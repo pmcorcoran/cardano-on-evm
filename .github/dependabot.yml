@@ -2,6 +2,11 @@ version: 2
 updates:
   - package-ecosystem: npm
     directory: /
+    ignore:
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
@@ -12,11 +17,17 @@ updates:
     open-pull-requests-limit: 5
   - package-ecosystem: npm
     directory: /infra/bundler/build-tools
+    ignore:
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
   - package-ecosystem: pip
     directory: /tests/browser
+    ignore:
+      - dependency-name: "pyee"
+        update-types: ["version-update:semver-major"]
     schedule:
       interval: weekly
   - package-ecosystem: github-actions
