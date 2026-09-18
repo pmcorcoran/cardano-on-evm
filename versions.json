@@ -1,0 +1,118 @@
+{
+  "status": "initial 0.1.0 portable implementation; validation results belong to run reports",
+  "packageVersion": "0.1.0",
+  "nodeObserved": "26.8.1",
+  "npmObserved": "11.19.0",
+  "dependencies": "package-lock.json",
+  "compiler": {
+    "version": "0.8.30+commit.73712a01",
+    "optimizer": true,
+    "optimizerRuns": 200,
+    "evmVersion": "cancun",
+    "cryptographyViaIR": false,
+    "kernelViaIR": true,
+    "metadataBytecodeHash": "none",
+    "appendCBOR": false
+  },
+  "upstreamSources": "vendor/sources.json",
+  "kernel": {
+    "version": "0.3.3",
+    "commit": "cd697c7e21715d015e0643af22310a99aa17433b",
+    "metadataSource": "@zerodev/sdk@5.5.10 constants.ts"
+  },
+  "entryPoint": {
+    "version": "0.7.0",
+    "license": "GPL-3.0",
+    "referenceSourceBuild": "evidence/release/entrypoint-source-build.json"
+  },
+  "bundlerCandidate": {
+    "name": "Alto",
+    "version": "0.0.21",
+    "license": "GPL-3.0-or-later",
+    "package": "@pimlico/alto",
+    "commit": "228d2ee9a6833e07da7f82e2a9303c8e29d65b14",
+    "lockfile": "infra/bundler/package-lock.json",
+    "dependencyAudit": {
+      "review": "docs/dependency-review.md",
+      "policy": "Use the pinned isolated dependency tree; report fresh audit results in validation output."
+    },
+    "sourceBuildDriver": {
+      "forge": "1.8.1",
+      "commit": "982849d3140c01fd3b72905759581a132df7aa98",
+      "toolsLock": "infra/bundler/build-tools/package-lock.json"
+    }
+  },
+  "localEVM": {
+    "name": "Anvil",
+    "version": "1.7.1",
+    "commit": "4072e48705af9d93e3c0f6e29e93b5e9a40caed8",
+    "hardfork": "cancun",
+    "chainId": 31337,
+    "releaseVersion": "1.8.1",
+    "installer": "scripts/install-foundry.mjs"
+  },
+  "baseSepolia": {
+    "chainId": 84532,
+    "upstreamAddresses": {
+      "entryPoint": {
+        "address": "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
+        "codeBytes": 16035,
+        "runtimeCodeHash": "0x8db5ff695839d655407cc8490bb7a5d82337a86a6b39c3f0258aa6c3b582fc58"
+      },
+      "kernelImplementation": {
+        "address": "0xd6CEDDe84be40893d153Be9d467CD6aD37875b28",
+        "codeBytes": 24469,
+        "runtimeCodeHash": "0x0b7b78a4c39a523ebfc23394a547dffd0b9eb0276740e8ce59b6b87287ded3af"
+      },
+      "kernelFactory": {
+        "address": "0x2577507b78c2008Ff367261CB6285d44ba5eF2E9",
+        "codeBytes": 950,
+        "runtimeCodeHash": "0xcc4b1b98f5716bf61042d87bfedd4709a5c9a597c41f3bb0e6fb6fe1a4ebd37a"
+      }
+    },
+    "configurationRunbook": "docs/deployment.md",
+    "status": "Configured upstream address and runtime pins; no new network verification is implied."
+  },
+  "baseMainnet": {
+    "chainId": 8453,
+    "upstreamAddresses": {
+      "entryPoint": {
+        "address": "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
+        "runtimeCodeHash": "0x8db5ff695839d655407cc8490bb7a5d82337a86a6b39c3f0258aa6c3b582fc58"
+      },
+      "kernelImplementation": {
+        "address": "0xd6CEDDe84be40893d153Be9d467CD6aD37875b28",
+        "runtimeCodeHash": "0xe5b56d82025d2358308f77833fe29c3856b1a7a0f7a4b9f86b1fd77da3e3b4fb"
+      },
+      "kernelFactory": {
+        "address": "0x2577507b78c2008Ff367261CB6285d44ba5eF2E9",
+        "runtimeCodeHash": "0xcc4b1b98f5716bf61042d87bfedd4709a5c9a597c41f3bb0e6fb6fe1a4ebd37a"
+      }
+    },
+    "configurationRunbook": "docs/deployment.md",
+    "status": "Configured upstream address and runtime pins; no new network verification is implied."
+  },
+  "profiles": {
+    "version": "1",
+    "source": "contracts/profiles/ProfileAccountFactory.sol",
+    "policies": [
+      "TargetAllowlistPolicy",
+      "SelectorAllowlistPolicy"
+    ],
+    "applicationAdmin": false,
+    "restrictedOwnerOptOut": false
+  },
+  "releasePackages": {
+    "version": "0.1.0",
+    "libraries": [
+      "wallet",
+      "protocol",
+      "enrollment",
+      "sdk",
+      "submission",
+      "contracts"
+    ],
+    "contracts": "packages/contracts",
+    "publiclyPublished": false
+  }
+}

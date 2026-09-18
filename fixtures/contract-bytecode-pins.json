@@ -1,0 +1,12 @@
+{
+  "PreparedTableValidator": {
+    "source": "contracts/experiments/KernelPathValidator.sol",
+    "creationSha256": "3020b93b8ad0c344ce6a3f95af5660f60a6d1ba3f0c7c4d2d3ac406be54f83fc",
+    "runtimeTemplateSha256": "668a3130285d5b173a7c94b41efc1632340dd882adf2138d46cc6c61a9cb1a60"
+  },
+  "PreparedTableFactory": {
+    "source": "contracts/experiments/PreparedKeyFactory.sol",
+    "creationSha256": "f57b46b1360ddfae68b2aebd5a28e08a1d3777bb009fc72ed0348a4de7456512",
+    "runtimeTemplateSha256": "084bb3c16bf3d190ff1a147b06c5df3c4b4b163e7bbb063b1694db1a814fa162"
+  }
+}

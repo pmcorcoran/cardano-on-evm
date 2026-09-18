@@ -1,0 +1,39 @@
+{
+  "name": "cardano-on-evm-private-bundler",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "description": "Separately installed Alto integration; independent of the core account packages",
+  "dependencies": {
+    "@pimlico/alto": "0.0.21",
+    "viem": "2.56.3",
+    "@opentelemetry/instrumentation-fastify": "npm:@fastify/otel@0.21.0"
+  },
+  "scripts": {
+    "prepare:worker": "node scripts/prepare.mjs",
+    "start": "node src/run.mjs",
+    "test": "node --test --test-isolation=none tests/*.test.mjs"
+  },
+  "overrides": {
+    "@pimlico/alto": {
+      "fastify": "5.12.5",
+      "@fastify/cors": "11.3.0",
+      "@fastify/websocket": "11.3.0",
+      "@opentelemetry/core": "2.11.0",
+      "@opentelemetry/sdk-node": "0.222.0",
+      "@opentelemetry/sdk-trace-base": "2.11.0",
+      "@opentelemetry/exporter-trace-otlp-proto": "0.222.0",
+      "@opentelemetry/instrumentation-fastify": "npm:@fastify/otel@0.21.0",
+      "@opentelemetry/instrumentation-http": "0.222.0",
+      "@opentelemetry/instrumentation-ioredis": "0.70.0",
+      "@opentelemetry/instrumentation-pino": "0.68.0",
+      "@opentelemetry/instrumentation-undici": "0.32.0",
+      "@sentry/node": "10.75.0"
+    },
+    "@opentelemetry/instrumentation": "0.222.0",
+    "bull": {
+      "uuid": "11.1.1"
+    }
+  }
+}

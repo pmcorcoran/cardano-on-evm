@@ -1,0 +1,81 @@
+import './errors.js';
+import assert from 'node:assert/strict';
+import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { createPublicClient, createWalletClient, http, encodeFunctionData, keccak256, parseEther, stringToHex, concatHex, type Abi, type Address, type Hex } from 'viem';
+import { foundry } from 'viem/chains';
+import { privateKeyToAccount } from 'viem/accounts';
+import { entryPoint07Abi } from 'viem/account-abstraction';
+import { createTableEnrollmentService, MemoryChallengeStore, createEnrollmentHandler } from '../../packages/enrollment/src/index.js';
+import { constructOperation, enrollCardanoAccount, httpEnrollmentTransport, signOperation, validatorPreparation, kernelProxyInitCode, type TableIdentityConfig } from '../../packages/sdk/src/index.js';
+import { createDirectAdapter, httpRpc, type OperationContext } from '../../packages/submission/src/index.js';
+import { fixtureAddress, signFixture } from '../../tests/fixtures.js';
+import { toHex as rawHex, type CardanoWalletAdapter } from '../../packages/wallet/src/index.js';
+import { artifacts, json } from '../lib/live-context.js';
+
+// Generated fixture and Anvil's public test key ONLY. No operator key file is read.
+const localRpcUrl = process.env.LOCAL_RPC_URL ?? 'http://127.0.0.1:8545';
+const client = createPublicClient({ chain: foundry, transport: http(localRpcUrl), pollingInterval: 50 });
+assert.equal(await client.getChainId(), 31337);
+const submitter = privateKeyToAccount('0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80');
+const wallet = createWalletClient({ chain: foundry, transport: http(localRpcUrl), account: submitter });
+const find = artifacts(); const deployments: Record<string, unknown> = {};
+async function deploy(name: string, args: readonly unknown[] = []) {
+  const a = name === 'EntryPoint' ? JSON.parse(readFileSync('vendor/entrypoint-v07/artifacts/EntryPoint.json', 'utf8')) : find(name);
+  const bytecode = name === 'EntryPoint' ? a.bytecode : `0x${a.evm.bytecode.object}`;
+  const hash = await wallet.deployContract({ abi: a.abi as Abi, bytecode, args, gas: 15000000n });
+  const receipt = await client.waitForTransactionReceipt({ hash }); assert.equal(receipt.status, 'success'); assert.ok(receipt.contractAddress);
+  deployments[name] = { address: receipt.contractAddress, transactionHash: hash, gasUsed: receipt.gasUsed };
+  return receipt.contractAddress;
+}
+const ep = await deploy('EntryPoint'); const kernel = await deploy('Kernel', [ep]); const kernelFactory = await deploy('KernelFactory', [kernel]);
+const tableFactory = await deploy('PreparedTableFactory', [ep]); const counter = await deploy('ExperimentCounter');
+const config: TableIdentityConfig = { chainId: 31337, entryPoint: ep, kernelImplementation: kernel, kernelFactory, tableFactory, validatorCreationCode: `0x${find('PreparedTableValidator').evm.bytecode.object}`, namespace: keccak256(stringToHex('sdk local acceptance generated fixture')), index: 0n };
+const application = 'http://127.0.0.1:4173'; const address = rawHex(fixtureAddress(14));
+const cardanoWallet: CardanoWalletAdapter = { name: 'GENERATED TEST FIXTURE', network: async () => 0, addresses: async (credential) => credential === 'stake' ? [address] : [], signData: async (claimed, payload) => { assert.equal(claimed, address); return signFixture(payload, fixtureAddress(14), undefined, true); } };
+const service = createTableEnrollmentService({ application, cardanoNetwork: 0, config, store: new MemoryChallengeStore() });
+const handler = createEnrollmentHandler(service);
+const fetcher = ((url: string | URL | Request, init: RequestInit) => handler(new Request(url, init))) as typeof fetch;
+const transport = httpEnrollmentTransport(`${application}/`, fetcher);
+const options = { wallet: cardanoWallet, transport, application, cardanoAddress: address, cardanoNetwork: 0 as const, credential: 'stake' as const, config };
+const account = await enrollCardanoAccount(options); const repeated = await enrollCardanoAccount(options);
+assert.deepEqual(account.identity, repeated.identity);
+const predicted = await client.readContract({ address: kernelFactory, abi: find('KernelFactory').abi as Abi, functionName: 'getAddress', args: [account.identity.initializeData, account.identity.accountSalt] }) as Address;
+assert.equal(predicted.toLowerCase(), account.identity.account.toLowerCase());
+assert.equal(await client.getCode({ address: predicted }), undefined);
+const preparation = await wallet.sendTransaction({ ...validatorPreparation(account), gas: 15000000n });
+const preparationReceipt = await client.waitForTransactionReceipt({ hash: preparation }); assert.equal(preparationReceipt.status, 'success');
+assert.ok(await client.getCode({ address: account.identity.validator }));
+const funding = await wallet.writeContract({ address: ep, abi: entryPoint07Abi, functionName: 'depositTo', args: [predicted], value: parseEther('0.1') });
+const fundingReceipt = await client.waitForTransactionReceipt({ hash: funding });
+const rpc = httpRpc(localRpcUrl); let sentCount = 0;
+const direct = createDirectAdapter({ rpc, submitter: submitter.address, sendTransaction: async (intent) => { sentCount++; return wallet.sendTransaction({ ...intent, gas: 3000000n }); } });
+const counterAbi = find('ExperimentCounter').abi as Abi;
+const call = (amount: bigint) => ({ target: counter, value: 0n, data: encodeFunctionData({ abi: counterAbi, functionName: 'increment', args: [amount] }) });
+const unsigned = (nonce: bigint, batch = false) => constructOperation(account, { calls: batch ? [call(2n), call(3n)] : [call(1n)], nonce, deploy: nonce === 0n, gas: { callGasLimit: 250000n, verificationGasLimit: 500000n, preVerificationGas: 100000n }, fees: { maxFeePerGas: 2000000000n, maxPriorityFeePerGas: 1000000000n } });
+const results = [];
+for (let index = 0; index < 3; index++) {
+  const signed = await signOperation(account, unsigned(BigInt(index), index === 2), cardanoWallet);
+  const context: OperationContext = { chainId: 31337, entryPoint: ep, operation: signed.operation };
+  const submission = await direct.submit(context); assert.ok(submission.transactionHash);
+  const receipt = await client.waitForTransactionReceipt({ hash: submission.transactionHash });
+  const status = await direct.status(context, submission); assert.equal(status.status, 'included');
+  const trace = await (client.request as (input: unknown) => Promise<any>)({ method: 'debug_traceTransaction', params: [submission.transactionHash, { tracer: 'callTracer' }] });
+  const moduleCalls: any[] = []; const walk = (t: any) => { if (t.to?.toLowerCase() === account.identity.validator.toLowerCase()) moduleCalls.push(t); for (const c of t.calls ?? []) walk(c); }; walk(trace);
+  // Largest module call is validateUserOp; install/getter checks are smaller.
+  const validatorGas = moduleCalls.reduce((max, item) => BigInt(item.gasUsed) > max ? BigInt(item.gasUsed) : max, 0n);
+  results.push({ kind: index === 0 ? 'deployment-and-call' : index === 2 ? 'batch' : 'subsequent-call', submission, status: status.status, totalTransactionGas: receipt.gasUsed, entryPointActualGasUsed: status.actualGasUsed, validatorGas });
+}
+const code = await client.getCode({ address: predicted }); assert.equal(code, `0x${kernelProxyInitCode(kernel).slice(2 + 34 * 2)}`);
+const slot = '0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc';
+const implementation = await client.getStorageAt({ address: predicted, slot }); assert.equal(implementation?.toLowerCase(), `0x${'0'.repeat(24)}${kernel.slice(2).toLowerCase()}`);
+const root = await client.readContract({ address: predicted, abi: find('Kernel').abi as Abi, functionName: 'rootValidator' }); assert.equal(String(root).toLowerCase(), concatHex(['0x01', account.identity.validator]).toLowerCase());
+assert.equal(await client.readContract({ address: account.identity.validator, abi: find('PreparedTableValidator').abi as Abi, functionName: 'publicKey' }), account.publicKey);
+assert.equal(await client.readContract({ address: counter, abi: counterAbi, functionName: 'number' }), 7n);
+const valid = await signOperation(account, unsigned(3n), cardanoWallet); const context: OperationContext = { chainId: 31337, entryPoint: ep, operation: valid.operation };
+const before = sentCount;
+await assert.rejects(direct.submit({ ...context, operation: { ...valid.operation, callData: unsigned(3n, true).callData } }), /AA24/);
+await assert.rejects(direct.submit({ ...context, operation: { ...valid.operation, nonce: 0n } }));
+assert.equal(sentCount, before);
+const evidence = { kind: 'local-sdk-backend-direct-full-flow', timestamp: new Date().toISOString(), chainId: 31337, realWallet: false, baseSepolia: false, publicBundlerAdmission: false, source: 'generated Ed25519 fixture; Anvil public submitter', profile: account.profile, independentBackendEnrollmentAndSdkAgreed: true, repeatedEnrollmentStable: true, liveLocalFactoryPredictionMatched: true, deployedProxyImplementationRootAndKeyChecked: true, verificationGasLimit: '500000', deployments, identity: account.identity, preparation: { transactionHash: preparation, gasUsed: preparationReceipt.gasUsed }, funding: { transactionHash: funding, gasUsed: fundingReceipt.gasUsed }, results, unauthorizedCallAndNonceChangesBlockedBeforeSubmission: true };
+mkdirSync('evidence/local', { recursive: true }); writeFileSync('evidence/local/sdk-flow.json', json(evidence));
+console.log(json(evidence));

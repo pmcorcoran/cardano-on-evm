@@ -1,0 +1,133 @@
+{
+  "schema": 1,
+  "kind": "generated-public-test-data",
+  "capturedBeforeApiSimplification": true,
+  "protocolBackendVectorsMatched": 225,
+  "subgroupAndHeaderRejections": 20,
+  "sources": {
+    "packages/protocol/src/identity.ts": "e1c4d5b105b14a311a2e2bd423ca8ecf79c2ca6870d84f01e5dbfdddd4dc601b",
+    "packages/protocol/src/profiles.ts": "48fb972374af222c226d1b759ae0e59dacd8d3831adb72c8d106f15627c992c2",
+    "packages/protocol/src/index.ts": "fb955b4b6d5aa8ec24df981433ce231275e0eb056ed690cde6c11888e74abc27",
+    "packages/sdk/src/index.ts": "a3d7e1086d76ca08154caaa5547d0f7a2c390719abfb9c04400d0224b720b613",
+    "packages/enrollment/src/identity.ts": "a25fe5bd8026200ce91da38ca09b594b424c2b39df6f93bc10f8df161253c2fa"
+  },
+  "frozenFiles": {
+    "inputs.json": "1ccbffbf3deb55fe5a31bc6625a5f10ca9e76ed06cc362bdb72ee27da795fc4c",
+    "protocol-vectors.json": "6ceafbad2d02c62aef0c41fdddd9f7c1300aa82e0771b5a7e7e4d73b0a40eb29",
+    "backend-vectors.json": "0f416a44835d2e5243e24aa042cfff4ec74d448198f0bf157012d50dddfb3632"
+  },
+  "artifacts": {
+    "compiler": "0.8.30+commit.73712a01.Emscripten.clang",
+    "settings": {
+      "optimizer": {
+        "enabled": true,
+        "runs": 200
+      },
+      "viaIR": false,
+      "evmVersion": "cancun",
+      "metadata": {
+        "bytecodeHash": "none",
+        "appendCBOR": false
+      },
+      "remappings": [
+        "solady/=vendor/solady/src/",
+        "ExcessivelySafeCall/=vendor/excessively-safe-call/src/",
+        "@solidity/=vendor/scl/src/"
+      ],
+      "outputSelection": {
+        "*": {
+          "*": [
+            "abi",
+            "evm.bytecode",
+            "evm.deployedBytecode"
+          ]
+        }
+      }
+    },
+    "kernelSettings": {
+      "optimizer": {
+        "enabled": true,
+        "runs": 200
+      },
+      "viaIR": true,
+      "evmVersion": "cancun",
+      "metadata": {
+        "bytecodeHash": "none",
+        "appendCBOR": false
+      },
+      "remappings": [
+        "solady/=vendor/solady/src/",
+        "ExcessivelySafeCall/=vendor/excessively-safe-call/src/",
+        "@solidity/=vendor/scl/src/"
+      ],
+      "outputSelection": {
+        "*": {
+          "*": [
+            "abi",
+            "evm.bytecode",
+            "evm.deployedBytecode"
+          ]
+        }
+      }
+    },
+    "compilerInputSha256": "2c6fe2d0800205ce521c1f2fccceeb70fa3c82c5bbd7724bd6a14e947885ebb9",
+    "kernelCompilerInputSha256": "e4a141a692a02e789a5518ac7fa9ed29009c32d77602471523b8bd9c5d70d705",
+    "sourceInventorySha256": "608c9dd29b4886e0fe3170a45d9797ecd7906ac43fcb30d3fb456c4408505846",
+    "contracts": {
+      "Kernel": {
+        "abiSha256": "5f1a24e3324412cb81e18af4d98b8ec3395e14fd332cfaeaa1e5e9aa603a7dca",
+        "creationSha256": "32a78d14bbb4a4731e4e3c649f97f98612311a273b0b50266203fc3e0992ce85",
+        "runtimeTemplateSha256": "b17da87aae41ec0aa5db9e7035f2f651615307560adfce53d5e9696b6f725c28",
+        "creationKeccak256": "0xc57c698d54510057166853ab4f0f5bc0fa9f670b0e5be7aaddbc5192de7c45f0"
+      },
+      "KernelFactory": {
+        "abiSha256": "0107e7ff7f5c790668404da5c6affcf108b6301676c55eb499da7fcfb9a46614",
+        "creationSha256": "8f312150aa6623c69f0ea77bcf58e100925aa10762038c2aec1716171afa7e1a",
+        "runtimeTemplateSha256": "75861d3a6384f35f628ba2ad918601a947e74dd9b38d78479dee0391db77e334",
+        "creationKeccak256": "0xede2d549cd0871a075e800634b6970fa6b5991d83166e996bfdc85e7fffd66b4"
+      },
+      "PreparedTableFactory": {
+        "abiSha256": "0bfa1ff10ea9a2f7e9645d3a36544bffa401823ff9cf0b4890478c6e1b576d33",
+        "creationSha256": "f57b46b1360ddfae68b2aebd5a28e08a1d3777bb009fc72ed0348a4de7456512",
+        "runtimeTemplateSha256": "084bb3c16bf3d190ff1a147b06c5df3c4b4b163e7bbb063b1694db1a814fa162",
+        "creationKeccak256": "0x0e377ce43906d4d3fc7fee1cb55cc130473c3beaa6758837f5d2355d635563f5"
+      },
+      "PreparedTableValidator": {
+        "abiSha256": "a995f3cd7e4b4e048c67db1dffeb119dfd970cfb3bedcee11df59df46dec006a",
+        "creationSha256": "3020b93b8ad0c344ce6a3f95af5660f60a6d1ba3f0c7c4d2d3ac406be54f83fc",
+        "runtimeTemplateSha256": "668a3130285d5b173a7c94b41efc1632340dd882adf2138d46cc6c61a9cb1a60",
+        "creationKeccak256": "0x17a973c89d6904507b9066e10a7140bbf3a3f85eba4436f6b8a86315b8138005"
+      },
+      "RestrictedExecutionHook": {
+        "abiSha256": "5e87faa773571d0c8db2f3c91e6c2aff4eed3cff5595af3ed2f139a272302143",
+        "creationSha256": "65d6e17cec8849bdc82967174271d328ad72997c0f604d9ea4ed292ae2f3894c",
+        "runtimeTemplateSha256": "32979f16365ce448b41db60d51c645f14daa5dc74565904b4501f3c7ff873c3f",
+        "creationKeccak256": "0x7b6c0ee6b04c2e811d0ca0e6975d33462e377ae471f66f59716779d2dafa392b"
+      },
+      "TargetAllowlistPolicy": {
+        "abiSha256": "2b490ed4910d5cdb6dae05780f36c81fb0382b57a61552a96128964d5a52098c",
+        "creationSha256": "a820c0bad6705200e79a9599536e65af546902c37076e54da827b6cb7215bb0e",
+        "runtimeTemplateSha256": "0a8af4ad388bc230916312da5a539bae7da40d708ec496af0117b3dc2d8ecd16",
+        "creationKeccak256": "0xc3c501a3cecf88e7d06e93bbdb93c1b3daaee065b7ce25c04dc6233a058338d9"
+      },
+      "SelectorAllowlistPolicy": {
+        "abiSha256": "a31d21d22c648d6102ea385e656e1b8fe09360c299d76b46c44a5605f3fb0597",
+        "creationSha256": "4538345d005f9216a0385d028b56a63efe28084e2cbbc0737e93556d33aabe29",
+        "runtimeTemplateSha256": "8e729f45ffb340a281378db05e89279ee55873160b0ee86a6c8858d43689fa8c",
+        "creationKeccak256": "0x502f4072ffd33467063ee1eeec7b04b4ff9b379d3ec9f1ceb4fd9ef378455f1b"
+      },
+      "ProfileAccountFactory": {
+        "abiSha256": "41b72670b02a9e5c27864dea2bb833b5910a392c628c0368aaefa4aa2bb13a57",
+        "creationSha256": "6e14dc5877b37d96f817d2793b88fb08bf641a33f677433cfcb13e589664be79",
+        "runtimeTemplateSha256": "54be992e5569c93ed85be060fc626b32d04024d591bc8f54b2d2852d2c949f48",
+        "creationKeccak256": "0x3a1fa248e6068a00eaa728226273b5dbe857db97bb3b4acd8fc798fe92a22735"
+      },
+      "ProfilePreparationFactory": {
+        "abiSha256": "bbca895a46d3122b240eaa7b3705c0a3581769a5165b4c65f4040d48ed7bc2fe",
+        "creationSha256": "75857a4fa45b4a9a079b56a14a025f8e7c1b0bd19afe1a51bad7816b02da2f66",
+        "runtimeTemplateSha256": "dd4af5ea793947c5878c31df335aefcd21fa66997525be7743cb9bfd9b3682d7",
+        "creationKeccak256": "0x227edc4a02f91e2d410fb296cd66778e8109872efa2c7f7e023cd32d73915aa9"
+      }
+    }
+  }
+}

@@ -1,0 +1,9 @@
+* text=auto eol=lf
+
+# Frozen inputs and original third-party notices must retain their exact bytes.
+vendor/** -text
+fixtures/** -text
+licenses/supplemental/** -text
+**/LICENSE* -text
+LICENSE -text
+infra/bundler/build-tools/remappings.txt -text

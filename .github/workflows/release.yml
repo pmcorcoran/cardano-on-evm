@@ -1,0 +1,303 @@
+name: Release candidate
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Complete candidate-only run, approved publication, or same-byte recovery
+        type: choice
+        options: [candidate-only, publish, recover]
+        default: candidate-only
+      recovery_run_id:
+        description: Original run ID, required only for recovery
+        type: string
+      recovery_run_attempt:
+        description: Original candidate run attempt
+        type: string
+        default: '1'
+      recovery_candidate_id:
+        description: Reviewed SHA256SUMS SHA-256, required only for recovery
+        type: string
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  resolve:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      build: ${{ steps.resolve.outputs.build }}
+      publish: ${{ steps.resolve.outputs.publish }}
+      mode: ${{ steps.resolve.outputs.mode }}
+      commit: ${{ steps.resolve.outputs.commit }}
+      version: ${{ steps.resolve.outputs.version }}
+      artifact-id: ${{ steps.resolve.outputs.artifactId }}
+      artifact-digest: ${{ steps.resolve.outputs.artifactDigest }}
+      candidate-id: ${{ steps.resolve.outputs.candidateId }}
+      handoff-sha256: ${{ steps.resolve.outputs.handoffSha256 }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 26.8.1
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.13'
+      - id: resolve
+        name: Resolve exact main snapshot and enforce bootstrap/recovery policy
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_MODE: ${{ inputs.mode || 'candidate-only' }}
+          RELEASE_PUBLISH_ENABLED: ${{ vars.RELEASE_PUBLISH_ENABLED }}
+          RELEASE_REHEARSAL_RUN_ID: ${{ vars.RELEASE_REHEARSAL_RUN_ID }}
+          RELEASE_REHEARSAL_RUN_ATTEMPT: ${{ vars.RELEASE_REHEARSAL_RUN_ATTEMPT }}
+          RECOVERY_RUN_ID: ${{ inputs.recovery_run_id }}
+          RECOVERY_RUN_ATTEMPT: ${{ inputs.recovery_run_attempt || '1' }}
+          RECOVERY_CANDIDATE_ID: ${{ inputs.recovery_candidate_id }}
+        run: node scripts/release/candidate.mjs resolve
+
+  validate:
+    needs: resolve
+    if: needs.resolve.outputs.build == 'true'
+    permissions:
+      contents: read
+      security-events: write
+      packages: read
+    uses: ./.github/workflows/check.yml
+    with:
+      ref: ${{ needs.resolve.outputs.commit }}
+      candidate: true
+
+  package:
+    needs: [resolve, validate]
+    if: needs.resolve.outputs.build == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    outputs:
+      artifact-id: ${{ steps.upload.outputs.artifact-id }}
+      artifact-digest: ${{ steps.upload.outputs.artifact-digest }}
+      candidate-id: ${{ steps.identity.outputs.candidateId }}
+    env:
+      ANVIL_BIN: ${{ github.workspace }}/.local/tools/foundry/anvil
+      FORGE_BIN: ${{ github.workspace }}/.local/tools/foundry/forge
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ needs.resolve.outputs.commit }}
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 26.8.1
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.13'
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: ${{ needs.validate.outputs.context-artifact }}
+          path: .local/ci
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: ${{ needs.validate.outputs.evidence-prefix }}*
+          merge-multiple: true
+          path: .local/ci
+      - name: Install fresh pinned packaging/consumer toolchain
+        run: |
+          npm install --global npm@11.19.0 --ignore-scripts
+          npm ci --ignore-scripts
+          node scripts/install-foundry.mjs
+          python3 -m pip install --require-hashes -r tests/browser/requirements.txt
+      - name: Prepare, test exact tarballs, scan and freeze complete candidate
+        run: |
+          python3 scripts/package-release.py prepare --out .local/candidate --context .local/ci/context.json --evidence-dir .local/ci
+          python3 scripts/ci/evidence.py run --context .local/ci/context.json --suite package-consumer --out .local/ci --include consumer -- node scripts/check-package-install.mjs --archives .local/candidate/archives --out .local/ci/consumer
+          python3 scripts/ci/evidence.py run --context .local/ci/context.json --suite archive-scan --out .local/ci --include archive -- python3 scripts/package-release.py scan --out .local/candidate --context .local/ci/context.json --evidence-dir .local/ci
+          python3 scripts/package-release.py finalize --out .local/candidate --context .local/ci/context.json --evidence-dir .local/ci
+      - id: identity
+        env:
+          EXPECTED_COMMIT: ${{ needs.resolve.outputs.commit }}
+          EXPECTED_VERSION: ${{ needs.resolve.outputs.version }}
+        run: node scripts/release/candidate.mjs identity .local/candidate/assets
+      - id: upload
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-payload-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .local/candidate/assets
+          retention-days: 90
+          if-no-files-found: error
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: release-packaging-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .local/ci
+          include-hidden-files: true
+          retention-days: 90
+          if-no-files-found: error
+
+  attest:
+    needs: [resolve, package]
+    if: needs.resolve.outputs.build == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
+      attestations: write
+    outputs:
+      artifact-id: ${{ steps.upload.outputs.artifact-id }}
+      artifact-digest: ${{ steps.upload.outputs.artifact-digest }}
+      candidate-id: ${{ steps.seal.outputs.candidateId }}
+      handoff-sha256: ${{ steps.seal.outputs.handoffSha256 }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ needs.resolve.outputs.commit }}
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 26.8.1
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.13'
+      - name: Fetch exact finalized payload artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_ARTIFACT_ID: ${{ needs.package.outputs.artifact-id }}
+          CANDIDATE_ARTIFACT_DIGEST: sha256:${{ needs.package.outputs.artifact-digest }}
+        run: node scripts/release/candidate.mjs fetch .local/approved-candidate/assets
+      - name: Verify before signing
+        env:
+          EXPECTED_COMMIT: ${{ needs.resolve.outputs.commit }}
+          EXPECTED_VERSION: ${{ needs.resolve.outputs.version }}
+          EXPECTED_CANDIDATE_ID: ${{ needs.package.outputs.candidate-id }}
+        run: node scripts/release/candidate.mjs identity .local/approved-candidate/assets
+      - id: attest
+        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3.0.0, verified 2026-09-11
+        with:
+          subject-path: .local/approved-candidate/assets/*
+          push-to-registry: false
+      - id: seal
+        name: Bind unchanged assets and provenance bundle in review handoff
+        env:
+          EXPECTED_CANDIDATE_ID: ${{ needs.package.outputs.candidate-id }}
+          RELEASE_MODE: ${{ needs.resolve.outputs.mode }}
+          BUNDLE_PATH: ${{ steps.attest.outputs.bundle-path }}
+        run: node scripts/release/candidate.mjs seal .local/approved-candidate "$BUNDLE_PATH"
+      - id: upload
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-candidate-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .local/approved-candidate
+          retention-days: 90
+          if-no-files-found: error
+
+  review:
+    name: Verify candidate for review
+    needs: [resolve, attest]
+    if: ${{ always() && needs.resolve.result == 'success' && (needs.attest.result == 'success' || needs.resolve.outputs.mode == 'recover') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      artifact-id: ${{ needs.attest.outputs.artifact-id || needs.resolve.outputs.artifact-id }}
+      artifact-digest: ${{ needs.attest.outputs.artifact-digest && format('sha256:{0}', needs.attest.outputs.artifact-digest) || needs.resolve.outputs.artifact-digest }}
+      candidate-id: ${{ needs.attest.outputs.candidate-id || needs.resolve.outputs.candidate-id }}
+      handoff-sha256: ${{ needs.attest.outputs.handoff-sha256 || needs.resolve.outputs.handoff-sha256 }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+      CANDIDATE_ARTIFACT_ID: ${{ needs.attest.outputs.artifact-id || needs.resolve.outputs.artifact-id }}
+      CANDIDATE_ARTIFACT_DIGEST: ${{ needs.attest.outputs.artifact-digest && format('sha256:{0}', needs.attest.outputs.artifact-digest) || needs.resolve.outputs.artifact-digest }}
+      EXPECTED_CANDIDATE_ID: ${{ needs.attest.outputs.candidate-id || needs.resolve.outputs.candidate-id }}
+      EXPECTED_HANDOFF_SHA256: ${{ needs.attest.outputs.handoff-sha256 || needs.resolve.outputs.handoff-sha256 }}
+      EXPECTED_COMMIT: ${{ needs.resolve.outputs.commit }}
+      EXPECTED_VERSION: ${{ needs.resolve.outputs.version }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 26.8.1
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.13'
+      - run: node scripts/release/candidate.mjs fetch .local/review-candidate
+      - run: node scripts/release/candidate.mjs verify .local/review-candidate
+      - name: Install and test the six exact library tarballs downloaded from GitHub
+        run: |
+          npm install --global npm@11.19.0 --ignore-scripts
+          node scripts/release/candidate.mjs consumer .local/review-candidate
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: release-review-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .local/release-verification
+          retention-days: 90
+          if-no-files-found: error
+
+  publish:
+    name: Approve and publish immutable candidate
+    needs: [resolve, review]
+    if: ${{ always() && needs.resolve.result == 'success' && needs.review.result == 'success' && needs.resolve.outputs.publish == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    concurrency:
+      group: cardano-on-evm-publication
+      cancel-in-progress: false
+    environment:
+      name: github-release
+      url: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    permissions:
+      contents: write
+      actions: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_PUBLISH_ENABLED: ${{ vars.RELEASE_PUBLISH_ENABLED }}
+      RELEASE_REHEARSAL_RUN_ID: ${{ vars.RELEASE_REHEARSAL_RUN_ID }}
+      RELEASE_REHEARSAL_RUN_ATTEMPT: ${{ vars.RELEASE_REHEARSAL_RUN_ATTEMPT }}
+      CANDIDATE_ARTIFACT_ID: ${{ needs.review.outputs.artifact-id }}
+      CANDIDATE_ARTIFACT_DIGEST: ${{ needs.review.outputs.artifact-digest }}
+      RELEASE_APPROVED_CANDIDATE_ID: ${{ needs.review.outputs.candidate-id }}
+      EXPECTED_HANDOFF_SHA256: ${{ needs.review.outputs.handoff-sha256 }}
+      EXPECTED_COMMIT: ${{ needs.resolve.outputs.commit }}
+      EXPECTED_VERSION: ${{ needs.resolve.outputs.version }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 26.8.1
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.13'
+      - name: Download the exact approved candidate without rebuilding
+        run: node scripts/release/candidate.mjs fetch .local/publish-candidate
+      - name: Verify, create/reuse draft, upload missing assets, download and verify, then publish
+        run: node scripts/release/publish.mjs publish .local/publish-candidate
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: release-publication-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .local/publication
+          retention-days: 90
+          if-no-files-found: warn

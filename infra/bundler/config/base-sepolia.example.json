@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "chainId": 84532,
+  "entryPoint": "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
+  "entryPointCodeHash": "0x8db5ff695839d655407cc8490bb7a5d82337a86a6b39c3f0258aa6c3b582fc58",
+  "rpcUrlEnv": "BASE_SEPOLIA_RPC_URL",
+  "executorKeyEnv": "BUNDLER_EXECUTOR_PRIVATE_KEY",
+  "authTokenEnv": "BUNDLER_AUTH_TOKEN",
+  "gateway": { "host": "127.0.0.1", "port": 4337, "maxBodyBytes": 65536, "requestsPerMinute": 120, "maxConcurrent": 4, "upstreamTimeoutMs": 45000 },
+  "limits": { "verificationGas": "500000", "callGas": "1000000", "totalGas": "2000000", "maxFeePerGas": "50000000", "maxOperationCostWei": "100000000000000" },
+  "policy": {
+    "kind": "allowlist", "revision": "counter-v1", "paymasters": [],
+    "rules": [{ "target": "0x0000000000000000000000000000000000001001", "selectors": ["0x7cf5dab0"], "allowEmpty": false, "maxValueWei": "0" }]
+  },
+  "worker": {
+    "port": 4338,
+    "safe-mode": true,
+    "chain-type": "op-stack",
+    "default-api-version": "v2",
+    "max-gas-per-user-op": "2000000",
+    "max-gas-per-bundle": "4000000",
+    "max-resubmits": 3,
+    "max-executors": 1,
+    "min-executor-balance": "0",
+    "ceiling-max-fee-per-gas": "0.05",
+    "ceiling-max-priority-fee-per-gas": "0.01",
+    "mempool-max-parallel-ops": 1,
+    "mempool-max-queued-ops": 0,
+    "enforce-unique-senders-per-bundle": true,
+    "refilling-wallets": false,
+    "deploy-simulations-contract": false,
+    "dangerous-skip-user-operation-validation": false,
+    "enable-debug-endpoints": false,
+    "enable-instant-bundling-endpoint": false,
+    "enable-cors": false,
+    "eip-7702-support": false
+  }
+}

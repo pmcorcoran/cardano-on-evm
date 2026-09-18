@@ -1,0 +1,24 @@
+[Unit]
+Description=Cardano on EVM private bundler
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=cardano-bundler
+Group=cardano-bundler
+WorkingDirectory=/srv/cardano-on-evm/infra/bundler
+ExecStart=/usr/bin/node src/run.mjs --config=/etc/cardano-bundler/service.json --secrets-file=/etc/cardano-bundler/bundler.env --state=/var/lib/cardano-bundler/service-state.json
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=20
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/cardano-bundler
+
+[Install]
+WantedBy=multi-user.target

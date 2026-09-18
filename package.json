@@ -1,0 +1,55 @@
+{
+  "name": "cardano-on-evm-workspace",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "changeset": "changeset",
+    "version:check": "node scripts/release/version.mjs check",
+    "version:apply": "node scripts/release/version.mjs apply",
+    "version:signal": "node scripts/release/version.mjs signal",
+    "check:package": "node scripts/check-package-install.mjs",
+    "test:ci": "node --test tests/ci/*.test.mjs",
+    "check:types": "tsc --noEmit",
+    "build": "tsc -p tsconfig.json && node scripts/build-packages.mjs",
+    "test": "tsx --conditions=development --test tests/*.test.ts",
+    "build:packages": "node scripts/build-packages.mjs",
+    "build:contracts": "tsx scripts/build-contracts.ts && node scripts/build-contract-package.mjs",
+    "experiment:verifier": "tsx scripts/experiments/verifier.ts",
+    "experiment:kernel": "tsx scripts/experiments/kernel-path.ts",
+    "experiment:table": "tsx scripts/experiments/table-verifier.ts",
+    "experiment:sdk": "tsx scripts/experiments/sdk-flow.ts",
+    "experiment:policies": "tsx scripts/experiments/policies.ts",
+    "dev:wallet": "tsx scripts/wallet-server.ts",
+    "dev:reference": "tsx scripts/reference-server.ts",
+    "check:network": "tsx scripts/network-check.ts",
+    "check:vendor": "node --import tsx scripts/check-vendor.ts",
+    "fixtures:generate": "node --import tsx scripts/export-fixtures.ts",
+    "experiment:private": "tsx scripts/experiments/private-bundler.ts",
+    "check:repository": "python3 scripts/check-repository.py"
+  },
+  "dependencies": {
+    "@noble/curves": "2.4.0",
+    "@noble/hashes": "2.4.0",
+    "@scure/base": "2.0.0",
+    "viem": "2.56.3"
+  },
+  "devDependencies": {
+    "@changesets/cli": "3.0.2",
+    "@types/node": "24.3.1",
+    "esbuild": "0.25.12",
+    "solc": "0.8.30",
+    "tsx": "4.20.5",
+    "typescript": "5.9.2"
+  },
+  "overrides": {
+    "tmp": "0.2.7"
+  }
+}

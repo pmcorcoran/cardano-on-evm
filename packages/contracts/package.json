@@ -1,0 +1,16 @@
+{
+  "name": "@cardano-on-evm/contracts",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Versioned Cardano-controlled Kernel contracts, build artifacts and corresponding source",
+  "type": "module",
+  "license": "MIT AND GPL-3.0-only",
+  "exports": {
+    ".": { "types": "./index.d.ts", "import": "./index.js" },
+    "./manifest": "./manifest.json",
+    "./artifacts/*": "./artifacts/*.json",
+    "./contracts/*": "./contracts/*"
+  },
+  "files": ["index.js", "index.d.ts", "manifest.json", "artifacts", "contracts", "vendor", "LICENSE", "THIRD_PARTY_NOTICES.md", "README.md"],
+  "engines": { "node": ">=22.18.0" }
+}

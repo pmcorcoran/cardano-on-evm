@@ -1,0 +1,249 @@
+{
+  "package": "@pimlico/alto",
+  "version": "0.0.21",
+  "license": "GPL-3.0-or-later",
+  "repository": "https://github.com/pimlicolabs/alto",
+  "commit": "228d2ee9a6833e07da7f82e2a9303c8e29d65b14",
+  "sourceArchive": "https://codeload.github.com/pimlicolabs/alto/tar.gz/228d2ee9a6833e07da7f82e2a9303c8e29d65b14",
+  "sourceArchiveSha256": "91c265b9966fcc1b6f8555cb8d98c8a00c88a4d96e20df64621a82f134c4a147",
+  "npmIntegrity": "sha512-gLLGv56odFtd9z8Jo3yDK2ykjLsxOUqsICS8lV90C0VMVx/jSbC4lykbl5tg0tw+0g1CaxfaRjfkfGFbzNf63A==",
+  "submodules": [
+    {
+      "path": "contracts/lib/account-abstraction-v6",
+      "sha": "abff2aca61a8f0934e533d0d352978055fddbd96",
+      "sourceArchive": "https://codeload.github.com/eth-infinitism/account-abstraction/tar.gz/abff2aca61a8f0934e533d0d352978055fddbd96",
+      "sourceArchiveSha256": "5cc1234b3402aae06b9eddd6a7e49ee2507a91c09f15f34d9ffdfe3a42e6e0a5"
+    },
+    {
+      "path": "contracts/lib/account-abstraction-v7",
+      "sha": "7af70c8993a6f42973f520ae0752386a5032abe7",
+      "sourceArchive": "https://codeload.github.com/eth-infinitism/account-abstraction/tar.gz/7af70c8993a6f42973f520ae0752386a5032abe7",
+      "sourceArchiveSha256": "1332720ec19c0b20e21d4803bfa8c4accee8b48635797d88027374223f25c11d"
+    },
+    {
+      "path": "contracts/lib/account-abstraction-v8",
+      "sha": "4cbc06072cdc19fd60f285c5997f4f7f57a588de",
+      "sourceArchive": "https://codeload.github.com/eth-infinitism/account-abstraction/tar.gz/4cbc06072cdc19fd60f285c5997f4f7f57a588de",
+      "sourceArchiveSha256": "3f48ee3c52d03c9da5b75d6962319c26a6b82d9f4e59ef4cf3725faa71e6107b"
+    },
+    {
+      "path": "contracts/lib/account-abstraction-v9",
+      "sha": "b36a1ed52ae00da6f8a4c8d50181e2877e4fa410",
+      "sourceArchive": "https://codeload.github.com/eth-infinitism/account-abstraction/tar.gz/b36a1ed52ae00da6f8a4c8d50181e2877e4fa410",
+      "sourceArchiveSha256": "3d5910d25b41733b6f4243b0a1e760882e008d863456a80ab81efce031f30696"
+    },
+    {
+      "path": "contracts/lib/forge-std",
+      "sha": "ae570fec082bfe1c1f45b0acca4a2b4f84d345ce",
+      "sourceArchive": "https://codeload.github.com/foundry-rs/forge-std/tar.gz/ae570fec082bfe1c1f45b0acca4a2b4f84d345ce",
+      "sourceArchiveSha256": "1779f1effb28eb530a039696df4096848e1be3efc367fb3d6d3b855e99354f47"
+    },
+    {
+      "path": "contracts/lib/openzeppelin-contracts-v4.8.3",
+      "sha": "0a25c1940ca220686588c4af3ec526f725fe2582",
+      "sourceArchive": "https://codeload.github.com/OpenZeppelin/openzeppelin-contracts/tar.gz/0a25c1940ca220686588c4af3ec526f725fe2582",
+      "sourceArchiveSha256": "4d927527e82017ee9af1655f2806cd1ee4b8c78c78b1d4458439de63ddf1ef68"
+    },
+    {
+      "path": "contracts/lib/openzeppelin-contracts-v5.0.2",
+      "sha": "dbb6104ce834628e473d2173bbc9d47f81a9eec3",
+      "sourceArchive": "https://codeload.github.com/OpenZeppelin/openzeppelin-contracts/tar.gz/dbb6104ce834628e473d2173bbc9d47f81a9eec3",
+      "sourceArchiveSha256": "4a9c091852052f4319173629e0bf0b5cdf7a39d70e5e2298a7a6a149eff9f385"
+    },
+    {
+      "path": "contracts/lib/openzeppelin-contracts-v5.1.0",
+      "sha": "69c8def5f222ff96f2b5beff05dfba996368aa79",
+      "sourceArchive": "https://codeload.github.com/OpenZeppelin/openzeppelin-contracts/tar.gz/69c8def5f222ff96f2b5beff05dfba996368aa79",
+      "sourceArchiveSha256": "b0d8bc73b249cee906d596cf8e63c6ea71a4311c4e2a45a0b253e060d6dd3ae8"
+    },
+    {
+      "path": "contracts/lib/singleton-paymaster",
+      "sha": "349f1043989306f63c37c3419ba4cca191b205b2",
+      "sourceArchive": "https://codeload.github.com/pimlicolabs/singleton-paymaster/tar.gz/349f1043989306f63c37c3419ba4cca191b205b2",
+      "sourceArchiveSha256": "0090aa4247806b08a7a548fe7cadc1da586c427c4e909ddf9b7b34db7269f453"
+    },
+    {
+      "path": "contracts/lib/solady",
+      "sha": "1dd8967b93b379ca6cf384640e0715e55ef08e3d",
+      "sourceArchive": "https://codeload.github.com/vectorized/solady/tar.gz/1dd8967b93b379ca6cf384640e0715e55ef08e3d",
+      "sourceArchiveSha256": "1cf028ddbb36db760e9c81306a594b07240ac7bf2263ba8425e9eb7e0e2c6f09"
+    }
+  ],
+  "patches": [
+    {
+      "name": "fastify5-loopback-worker",
+      "reason": "Migrate the pinned RPC server to Fastify 5: custom loggerInstance, a bounded unmatched-route metric label, async WebSocket registration, and loopback binding.",
+      "sourcePath": "src/rpc/server.ts",
+      "sourceSha256": "f117b268fca3ad6a6065a9686d42322a8f7f043b130d420de391b45857f056a6",
+      "installedPath": "esm/rpc/server.js",
+      "installedSha256": "ab88a74ffbb24f19fe46a360f0602fa69e64f25df57f732be0a533ac57768fcb",
+      "sourceReplacements": [
+        {
+          "find": "host: \"0.0.0.0\"",
+          "replace": "host: \"127.0.0.1\""
+        },
+        {
+          "find": "logger: logger as FastifyBaseLogger, // workaround for https://github.com/fastify/fastify/issues/4960",
+          "replace": "loggerInstance: logger as unknown as FastifyBaseLogger,"
+        },
+        {
+          "find": "const ignoredRoutes = [\"/health\", \"/metrics\"]",
+          "replace": "const ignoredRoutes = [\"/health\", \"/metrics\"]\n            const route = request.routeOptions.url ?? \"unmatched\""
+        },
+        {
+          "find": "ignoredRoutes.includes(request.routeOptions.url)",
+          "replace": "ignoredRoutes.includes(route)"
+        },
+        {
+          "find": "route: request.routeOptions.url,",
+          "replace": "route,"
+        },
+        {
+          "find": "this.fastify.register((fastify) => {",
+          "replace": "this.fastify.register(async (fastify) => {"
+        },
+        {
+          "find": "rpc_method: request.rpcMethod,",
+          "replace": "rpc_method: request.rpcMethod ?? \"unknown\","
+        }
+      ],
+      "replacements": [
+        {
+          "find": "host: \"0.0.0.0\"",
+          "replace": "host: \"127.0.0.1\""
+        },
+        {
+          "find": "logger: logger, // workaround for https://github.com/fastify/fastify/issues/4960",
+          "replace": "loggerInstance: logger,"
+        },
+        {
+          "find": "const ignoredRoutes = [\"/health\", \"/metrics\"];",
+          "replace": "const ignoredRoutes = [\"/health\", \"/metrics\"];\n            const route = request.routeOptions.url ?? \"unmatched\";"
+        },
+        {
+          "find": "ignoredRoutes.includes(request.routeOptions.url)",
+          "replace": "ignoredRoutes.includes(route)"
+        },
+        {
+          "find": "route: request.routeOptions.url,",
+          "replace": "route,"
+        },
+        {
+          "find": "this.fastify.register((fastify) => {",
+          "replace": "this.fastify.register(async (fastify) => {"
+        },
+        {
+          "find": "rpc_method: request.rpcMethod,",
+          "replace": "rpc_method: request.rpcMethod ?? \"unknown\","
+        }
+      ]
+    },
+    {
+      "name": "strict-trace-outer-result",
+      "reason": "Expose the outer simulation result; the inner DelegateAndRevert is not the Pimlico result.",
+      "sourcePath": "src/rpc/validation/BundlerCollectorTracerV07.ts",
+      "installedPath": "esm/rpc/validation/BundlerCollectorTracerV07.js",
+      "sourceSha256": "b2122be675df3d56993dc44ee26d9cfd2cdc4cf05ea85b56e30e3214a5ee5a29",
+      "installedSha256": "fb67a95949f4df6337139e760205716c1b94f54b1dfccd49d542d02c67c4558e",
+      "replacements": [
+        {
+          "find": "callsFromEntryPoint: this.callsFromEntryPoint,",
+          "replace": "output: toHex(_ctx.output), error: _ctx.error || null,\n                callsFromEntryPoint: this.callsFromEntryPoint,"
+        }
+      ],
+      "sourceReplacements": [
+        {
+          "find": "export interface BundlerTracerResult {",
+          "replace": "export interface BundlerTracerResult {\n    output?: Hex\n    error?: string | null"
+        },
+        {
+          "find": "callsFromEntryPoint: this.callsFromEntryPoint,",
+          "replace": "output: toHex(_ctx.output), error: (_ctx as LogContext & { error?: string }).error || null,\n                callsFromEntryPoint: this.callsFromEntryPoint,"
+        }
+      ]
+    },
+    {
+      "name": "strict-simulation-return-decoding",
+      "reason": "Match strict validation to the return ABI of the same pinned simulation contracts; retain all signature, validity, storage and opcode checks.",
+      "sourcePath": "src/rpc/validation/SafeValidator.ts",
+      "installedPath": "esm/rpc/validation/SafeValidator.js",
+      "sourceSha256": "1f1f294f05d98422013d42bc91810b8dadfe44400e02285b530f9d5828506e30",
+      "installedSha256": "e9f3575ff7041d0448ab17753f75e15ae15a4c0638199edc481bf0170b7c76a4",
+      "replacements": [
+        {
+          "find": "decodeErrorResult, encodeDeployData",
+          "replace": "decodeErrorResult, decodeFunctionResult, encodeDeployData"
+        },
+        {
+          "find": "        const lastResult = tracerResult.calls.slice(-1)[0];\n        if (lastResult.type !== \"REVERT\") {\n            throw new Error(\"Invalid response. simulateCall must revert\");\n        }\n        const resultData = lastResult.data;\n        // Decode the validation result from the revert data\n        const { errorName, args } = decodeErrorResult({\n            abi: pimlicoSimulationsAbi,\n            data: resultData\n        });\n        if (errorName !== \"ValidationResult\") {\n            let errorCode = ERC7769Errors.SimulateValidation;\n            const errorMessage = errorName || \"Unknown validation error\";\n            if (errorMessage.includes(\"AA24\")) {\n                errorCode = ERC7769Errors.InvalidSignature;\n            }\n            if (errorMessage.includes(\"AA31\")) {\n                errorCode = ERC7769Errors.PaymasterDepositTooLow;\n            }\n            throw new RpcError(errorMessage, errorCode);\n        }\n        const validationResult = args[0];\n",
+          "replace": "        // The pinned PimlicoSimulations returns a value; its inner EntryPoint\n        // delegateAndRevert is only an implementation detail. Preserve the full\n        // trace for the existing opcode/storage parser and fail closed on an\n        // outer revert or missing output.\n        if (tracerResult.error || typeof tracerResult.output !== \"string\" || tracerResult.output === \"0x\") {\n            throw new RpcError(\"simulateValidation reverted or returned no result\", ERC7769Errors.SimulateValidation);\n        }\n        const validationResult = decodeFunctionResult({\n            abi: pimlicoSimulationsAbi,\n            functionName: \"simulateValidation\",\n            data: tracerResult.output\n        });\n\n"
+        }
+      ],
+      "sourceReplacements": [
+        {
+          "find": "    decodeErrorResult,",
+          "replace": "    decodeErrorResult,\n    decodeFunctionResult,"
+        },
+        {
+          "find": "        const lastResult = tracerResult.calls.slice(-1)[0]\n        if (lastResult.type !== \"REVERT\") {\n            throw new Error(\"Invalid response. simulateCall must revert\")\n        }\n        const resultData = lastResult.data as Hex\n\n        // Decode the validation result from the revert data\n        const { errorName, args } = decodeErrorResult({\n            abi: pimlicoSimulationsAbi,\n            data: resultData\n        })\n\n        if (errorName !== \"ValidationResult\") {\n            let errorCode = ERC7769Errors.SimulateValidation\n            const errorMessage = errorName || \"Unknown validation error\"\n\n            if (errorMessage.includes(\"AA24\")) {\n                errorCode = ERC7769Errors.InvalidSignature\n            }\n\n            if (errorMessage.includes(\"AA31\")) {\n                errorCode = ERC7769Errors.PaymasterDepositTooLow\n            }\n\n            throw new RpcError(errorMessage, errorCode)\n        }\n\n        const validationResult = args[0] as ValidationResult07\n\n",
+          "replace": "        // The pinned PimlicoSimulations returns a value; its inner EntryPoint\n        // delegateAndRevert is only an implementation detail. Preserve the full\n        // trace for the existing opcode/storage parser and fail closed on an\n        // outer revert or missing output.\n        if (tracerResult.error || typeof tracerResult.output !== \"string\" || tracerResult.output === \"0x\") {\n            throw new RpcError(\"simulateValidation reverted or returned no result\", ERC7769Errors.SimulateValidation);\n        }\n        const validationResult = decodeFunctionResult({\n            abi: pimlicoSimulationsAbi,\n            functionName: \"simulateValidation\",\n            data: tracerResult.output\n        });\n\n"
+        }
+      ]
+    },
+    {
+      "name": "fastify5-telemetry",
+      "reason": "Preserve optional Fastify tracing on v5 using the maintained @fastify/otel adapter (npm alias), registered before route initialization.",
+      "sourcePath": "src/cli/instrumentation.ts",
+      "installedPath": "esm/cli/instrumentation.js",
+      "replacements": [
+        {
+          "find": "import { FastifyInstrumentation } from \"@opentelemetry/instrumentation-fastify\"",
+          "replace": "import FastifyOtelInstrumentation from \"@opentelemetry/instrumentation-fastify\""
+        },
+        {
+          "find": "new FastifyInstrumentation()",
+          "replace": "new FastifyOtelInstrumentation({ registerOnInitialization: true })"
+        }
+      ],
+      "installedSha256": "22c9d981975328e522307a825a39efe3eaec306adc2d867b8120bea225ad60cf",
+      "sourceSha256": "5b0a99ceb1f2b6ded2d9693be8331bd48a5d05da84203b55538ff262f97c0abc",
+      "sourceReplacements": [
+        {
+          "find": "import { FastifyInstrumentation } from \"@opentelemetry/instrumentation-fastify\"",
+          "replace": "import FastifyOtelInstrumentation from \"@opentelemetry/instrumentation-fastify\""
+        },
+        {
+          "find": "new FastifyInstrumentation()",
+          "replace": "new FastifyOtelInstrumentation({ registerOnInitialization: true })"
+        }
+      ]
+    },
+    {
+      "name": "fastify5-decorator-type",
+      "reason": "Represent the existing null request decorator accurately in Fastify 5 types; installed decorator behavior is unchanged.",
+      "sourcePath": "src/utils/fastify-rpc-decorators.ts",
+      "installedPath": "esm/utils/fastify-rpc-decorators.js",
+      "replacements": [],
+      "sourceReplacements": [
+        {
+          "find": "rpcMethod: string",
+          "replace": "rpcMethod: string | null"
+        }
+      ],
+      "installedSha256": "10c42b6dea7a7a377787d4a780c1392c3d67da57f711d7cca6e9f99b64fce299",
+      "sourceSha256": "6fd4758d0a127d85f10888ed4e405b686657b2bbf914d358ad3da002b8c19b1e"
+    }
+  ],
+  "sourceBuild": {
+    "forgeVersion": "1.8.1",
+    "forgeCommit": "982849d3140c01fd3b72905759581a132df7aa98",
+    "remappings": {
+      "sourcePath": "contracts/remappings.txt",
+      "originalSha256": "2128406e52b0e2c91b8a8bfd1aa961ab7b01606b984786517118f0ea70070688",
+      "replacementFile": "build-tools/remappings.txt",
+      "replacementSha256": "c826ade0ef3825d4b06f3ab9ab3a301522c581d788438601768c2e477b03f5e4",
+      "reason": "Freeze the exact compiler remappings recorded in the pinned published artifacts; disable directory-dependent automatic remappings."
+    },
+    "packageManager": "npm with separate runtime and build-tool lockfiles; upstream pnpm 8 is not used"
+  }
+}

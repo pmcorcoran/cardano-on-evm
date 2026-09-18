@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cardano account · Base Sepolia</title>
+  <style>
+    :root{font:16px/1.5 system-ui,sans-serif;color:#20302c;background:#f3f5f0;color-scheme:light}*{box-sizing:border-box}body{margin:0}main{max-width:960px;margin:auto;padding:32px 20px 64px}h1{font-size:clamp(1.7rem,5vw,2.5rem);line-height:1.2;margin:12px 0}h2{font-size:1.2rem;margin:0 0 16px}h3{font-size:1rem}p{margin:10px 0}.tag{font-size:.8rem;letter-spacing:.12em;font-weight:650;color:#527162}section{border:1px solid #cbd8ca;border-radius:14px;background:white;padding:24px;margin-top:24px}.row{display:flex;gap:16px;flex-wrap:wrap;align-items:end}.row>label{flex:1;min-width:180px}label{display:block;font-weight:600}input,select,button{font:inherit;border:1px solid #9aae9f;border-radius:7px;padding:10px 12px}input,select{display:block;width:100%;margin:6px 0 12px;background:white;color:inherit}button{background:#214e40;color:white;cursor:pointer;min-height:44px;margin:4px 8px 4px 0}button.secondary{color:#214e40;background:#f1f5ef}button:disabled{opacity:.5;cursor:default}.note{color:#4a6257;font-size:.93rem}.policy{border-left:3px solid #809654;padding-left:14px;margin:12px 0}.policy p,dd,pre,.call,#status,#account-state{overflow-wrap:anywhere}dl{display:grid;grid-template-columns:minmax(100px,1fr) minmax(0,3fr);gap:8px 16px}dt{font-weight:600}dd{margin:0}.call{padding:12px;background:#f0f5ef;border-radius:6px;margin:8px 0}.notice{padding:12px;background:#fff8e2;border:1px solid #e6d5a0;border-radius:7px}.check{display:flex;align-items:start;gap:10px;font-size:.93rem}.check input{width:auto;margin-top:5px}#status{min-height:48px;padding:16px 0}pre{white-space:pre-wrap;font-size:.78rem}a{color:#1a654d}small{font-weight:400}footer{margin-top:28px;color:#4a6257}details{margin:16px 0}[hidden]{display:none!important}@media(max-width:550px){main{padding:24px 14px}section{padding:18px}dl{display:block}dd{margin:2px 0 12px}.row>label{min-width:100%}}
+  </style>
+  <script type="module" src="/app.js"></script>
+</head>
+<body><main>
+  <div class="tag">REFERENCE APPLICATION · BASE SEPOLIA</div>
+  <h1>Your Cardano key. Your Base account.</h1>
+  <p>Enroll with Lace or Eternl, review an account operation, and choose how to submit it. All amounts on this page are test ETH.</p>
+  <section>
+    <h2>1. Choose and enroll an account</h2>
+    <div class="row">
+      <label>Account profile<select id="profile"><option value="general">General purpose</option><option value="targets">Permanent target allowlist</option><option value="selectors">Permanent target and function allowlist</option></select></label>
+      <label>Wallet<select id="wallet"><option value="lace">Lace</option><option value="eternl">Eternl</option></select></label>
+      <label><span id="version-label">Installed Lace release</span><input id="wallet-version" maxlength="80" required placeholder="From your extension details"></label>
+    </div>
+    <div id="authority" class="policy"></div>
+    <label id="policy-ack-label" class="check" hidden><input id="policy-ack" type="checkbox">I understand that this account's restrictions are permanent, with no administrator or owner opt-out.</label>
+    <p id="wallet-instructions" class="note">Select a test-network software wallet in Lace. Enrollment signs an expiring account-configuration challenge with your stake credential.</p>
+    <p class="note">Enter the extension release, not its CIP-30 API version. Switching wallets requires fresh enrollment and may produce a different Base account even for the same Cardano key.</p>
+    <button id="connect" disabled>Connect Lace</button>
+    <label id="address-label" hidden>Cardano reward address<select id="address"></select></label>
+    <button id="enroll" disabled>Enroll selected profile</button>
+    <p id="enrollment-result" class="note"></p>
+  </section>
+  <section id="account-panel" hidden>
+    <h2>2. Review an operation</h2>
+    <p id="account-state"></p>
+    <div class="row">
+      <label>Action<select id="action"><option value="increment">Counter call · increment by 1</option><option value="batch">Batch · increment by 2 and 3</option><option value="transfer">Transfer 0.0000001 test ETH</option></select></label>
+      <label>Submission route<select id="mode"></select></label>
+    </div>
+    <button id="review" class="secondary">Prepare review</button>
+    <div id="review-panel" hidden><h3>Operation to authorize</h3><dl id="context"></dl><div id="calls"></div><details><summary>Exact operation and authorization payload</summary><pre id="raw"></pre></details><button id="sign" disabled>Sign and submit reviewed operation</button></div>
+  </section>
+  <section id="tracking-panel" hidden>
+    <h2>Submitted operation</h2>
+    <button id="poll" class="secondary" disabled>Check last operation</button>
+    <p id="receipt"></p>
+  </section>
+  <p id="status" role="status" aria-live="polite">Loading account configuration…</p>
+  <footer>Account ownership comes from the Cardano signature checked onchain. A bundler or funded transaction submitter pays to deliver that authorization to EntryPoint.</footer>
+</main></body></html>

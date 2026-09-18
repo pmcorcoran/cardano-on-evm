@@ -1,0 +1,82 @@
+[
+  {
+    "name": "@esbuild/*",
+    "version": "0.25.12",
+    "file": "licenses/supplemental/b40ec5baec7bb34fa5b1c09521fa3cd52d5fad7adafed74932a2010d3612a681.txt",
+    "sha256": "b40ec5baec7bb34fa5b1c09521fa3cd52d5fad7adafed74932a2010d3612a681",
+    "source": "esbuild@0.25.12/LICENSE.md",
+    "note": "Platform binary distributions share the project license"
+  },
+  {
+    "name": "@msgpackr-extract/*",
+    "version": "3.0.4",
+    "file": "licenses/supplemental/d00470775464c789c7ac04cfba3bf1b79ef149790eb72556d1c51d8f50c8e7f3.txt",
+    "sha256": "d00470775464c789c7ac04cfba3bf1b79ef149790eb72556d1c51d8f50c8e7f3",
+    "source": "https://raw.githubusercontent.com/kriszyp/msgpackr-extract/71def7bd969e5c88d2c918e0d81ee2ba3155d19c/LICENSE",
+    "note": null
+  },
+  {
+    "name": "abstract-logging",
+    "version": "2.0.1",
+    "file": "licenses/supplemental/370ede0d8ad6477abb32a080083cb608a06f3d610440fb9985b368f263c637cc.txt",
+    "sha256": "370ede0d8ad6477abb32a080083cb608a06f3d610440fb9985b368f263c637cc",
+    "source": "https://jsumners.mit-license.org/",
+    "note": "License URL explicitly referenced by the pinned upstream Readme.md; captured 2026-09-10"
+  },
+  {
+    "name": "undici-types",
+    "version": "5.26.5",
+    "file": "licenses/supplemental/a6db8096b2707bc0102d256917d4d33f298ba36d8c3f25de067a2b5bb379db27.txt",
+    "sha256": "a6db8096b2707bc0102d256917d4d33f298ba36d8c3f25de067a2b5bb379db27",
+    "source": "https://raw.githubusercontent.com/nodejs/undici/9197790ae0d015b40b75fd0c5cdb7420704b5272/LICENSE",
+    "note": null
+  },
+  {
+    "name": "pg-types",
+    "version": "2.2.0",
+    "file": "licenses/supplemental/2c8a6e1b7782f0ca241792868af742f1c281c9661f59ec36c9acf40381c86645.txt",
+    "sha256": "2c8a6e1b7782f0ca241792868af742f1c281c9661f59ec36c9acf40381c86645",
+    "source": "pg-types@2.2.0/README.md",
+    "note": null
+  },
+  {
+    "name": "acorn-import-assertions",
+    "version": "1.9.0",
+    "file": "licenses/supplemental/96149474a099307c64c1d75f7496c5e00d7d4ec07387439bb139bfa9d2b72445.txt",
+    "sha256": "96149474a099307c64c1d75f7496c5e00d7d4ec07387439bb139bfa9d2b72445",
+    "source": "https://github.com/xtuc/acorn-import-attributes/tree/809f1c58c699fd084b6db8096963d916fc69d4c7",
+    "note": "This upstream release provides an MIT declaration and author metadata but no standalone LICENSE file or copyright-year notice; both declarations are retained without inventing a year."
+  },
+  {
+    "name": "@manypkg/find-root",
+    "version": "3.1.0",
+    "file": "licenses/supplemental/3ec022e93fe45084cb405775906f5bf332b58f6f422ea437811eb376f7fbf5a8.txt",
+    "sha256": "3ec022e93fe45084cb405775906f5bf332b58f6f422ea437811eb376f7fbf5a8",
+    "source": "https://raw.githubusercontent.com/Thinkmill/manypkg/fc5d5e0be9496841f4e528532697e741c86a5ed5/LICENSE",
+    "note": "Project license from the matching upstream revision; npm package omits standalone notice. Captured 2026-09-17."
+  },
+  {
+    "name": "@manypkg/get-packages",
+    "version": "3.1.0",
+    "file": "licenses/supplemental/3ec022e93fe45084cb405775906f5bf332b58f6f422ea437811eb376f7fbf5a8.txt",
+    "sha256": "3ec022e93fe45084cb405775906f5bf332b58f6f422ea437811eb376f7fbf5a8",
+    "source": "https://raw.githubusercontent.com/Thinkmill/manypkg/fc5d5e0be9496841f4e528532697e741c86a5ed5/LICENSE",
+    "note": "Project license from the matching upstream revision; npm package omits standalone notice. Captured 2026-09-17."
+  },
+  {
+    "name": "@manypkg/tools",
+    "version": "2.1.2",
+    "file": "licenses/supplemental/3ec022e93fe45084cb405775906f5bf332b58f6f422ea437811eb376f7fbf5a8.txt",
+    "sha256": "3ec022e93fe45084cb405775906f5bf332b58f6f422ea437811eb376f7fbf5a8",
+    "source": "https://raw.githubusercontent.com/Thinkmill/manypkg/97e2ab9bc64e45af099f63f25c515f3792738cfb/LICENSE",
+    "note": "Project license from the matching upstream revision; npm package omits standalone notice. Captured 2026-09-17."
+  },
+  {
+    "name": "@sentry/server-utils",
+    "version": "10.75.0",
+    "file": "licenses/supplemental/497d5a7036220d5763088d161612f9f7f2e499fe3ce186826f4369b465769312.txt",
+    "sha256": "497d5a7036220d5763088d161612f9f7f2e499fe3ce186826f4369b465769312",
+    "source": "https://raw.githubusercontent.com/getsentry/sentry-javascript/10.75.0/LICENSE",
+    "note": "Project license from the matching upstream revision; npm package omits standalone notice. Captured 2026-09-17."
+  }
+]

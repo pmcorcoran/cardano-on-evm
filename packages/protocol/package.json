@@ -1,0 +1,28 @@
+{
+  "name": "@cardano-on-evm/protocol",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "development": "./src/index.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "dependencies": {
+    "viem": "2.56.3",
+    "@noble/curves": "2.4.0",
+    "@cardano-on-evm/wallet": "0.1.0"
+  },
+  "files": [
+    "dist",
+    "src",
+    "LICENSE",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=22.18.0"
+  }
+}

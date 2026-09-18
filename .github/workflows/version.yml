@@ -1,0 +1,47 @@
+name: Coordinated version PR
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cardano-on-evm-version-pr
+  cancel-in-progress: false
+
+jobs:
+  version:
+    if: ${{ github.ref == 'refs/heads/main' && vars.VERSION_PR_ENABLED == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment: version-pr
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 26.8.1
+      - name: Apply reviewed pending changesets from the captured main commit
+        run: |
+          npm install --global npm@11.19.0 --ignore-scripts
+          npm ci --ignore-scripts
+          node scripts/release/version.mjs apply
+      - id: app
+        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2, verified 2026-09-11
+        with:
+          app-id: ${{ vars.VERSION_APP_ID }}
+          private-key: ${{ secrets.VERSION_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
+          permission-pull-requests: write
+      - name: Open repository-scoped App PR so ordinary CI runs
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          VERSION_APP_SLUG: ${{ steps.app.outputs.app-slug }}
+        run: node scripts/release/github-version.mjs

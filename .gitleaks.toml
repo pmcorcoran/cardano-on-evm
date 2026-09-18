@@ -1,0 +1,97 @@
+title = "Cardano on EVM secret scanning"
+
+[extend]
+useDefault = true
+
+# Every exception requires BOTH an exact path suffix and an exact public value.
+# No source, test, history or rule is broadly excluded. See security/README.md.
+
+[[allowlists]]
+description = "RFC 8032 section 7.1 public Ed25519 test seeds; pinned SCL test only"
+targetRules = ["generic-api-key"]
+condition = "AND"
+regexTarget = "secret"
+paths = [
+  '''(?:^|/)vendor/scl/test/libSCL_eip6565\.t\.sol$''',
+]
+regexes = [
+  '''^(?:0x)?4ccd089b28ff96da9db6c346ec114e0f5b8a319f35aba624da8cf6ed4fb8a6fb$''',
+  '''^(?:0x)?c5aa8df43f9f837bedb7442f31dcb7b166d38535076f094b85ce3a2e0b4458f7$''',
+  '''^(?:0x)?f5e5767cf153319517630f226876b86c8160cc583bc013744c6bf255f5cc0ee5$''',
+]
+
+[[allowlists]]
+description = "Public default Anvil account zero; pinned example and local-only experiment"
+targetRules = ["generic-api-key"]
+condition = "AND"
+regexTarget = "secret"
+paths = [
+  '''(?:^|/)scripts/experiments/private\-bundler\.ts$''',
+  '''(?:^|/)vendor/scl/src/lib/Ed25519DelegationEIP7702\.sol$''',
+]
+regexes = [
+  '''^(?:0x)?ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80$''',
+  '''^(?:0x)?f39Fd6e51aad88F6F4ce6aB8827279cffFb92266$''',
+]
+
+[[allowlists]]
+description = "Public default Anvil account one used by the local bundler executor"
+targetRules = ["generic-api-key"]
+condition = "AND"
+regexTarget = "secret"
+paths = ['''(?:^|/)scripts/experiments/private\-bundler\.ts$''']
+regexes = ['''^(?:0x)?59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d$''']
+
+[[allowlists]]
+description = "SHA256 source integrity pins for the two vendored Solady WebAuthn files"
+targetRules = ["generic-api-key"]
+condition = "AND"
+regexTarget = "secret"
+paths = [
+  '''(?:^|/)vendor/sources\.json$''',
+]
+regexes = [
+  '''^(?:0x)?c1e12bd18c5e50bf8cb1e9d8523ccbd8425fece69103259ba669d5ca6c521b25$''',
+  '''^(?:0x)?c4f46b58916601db7125bb3b9ad7d289869725d55d3dda053704f6951bc2d173$''',
+]
+
+[[allowlists]]
+description = "Reviewed public COSE Ed25519 key, no private key parameter; exact generated public test vector only"
+targetRules = ["generic-api-key"]
+condition = "AND"
+regexTarget = "secret"
+paths = [
+  '''(?:^|/)fixtures/generated\-cip8\.json$''',
+]
+regexes = [
+  '''^(?:0x)?a401010327200621582079b5562e8fe654f94078b112e8a98ba7901f853ae695bed7e0e3910bad049664$''',
+]
+
+[[allowlists]]
+description = "Four deterministic public Ed25519 verification keys emitted by crypto-corpus.ts"
+targetRules = ["generic-api-key"]
+condition = "AND"
+regexTarget = "secret"
+paths = [
+  '''(?:^|/)evidence/local/crypto\-corpus\.json$''',
+]
+regexes = [
+  '''^(?:0x)?0800fd4f158b2a4dc6f3b9628aa147923efc3b984e83636a31e4d0f977f0e6b1$''',
+  '''^(?:0x)?8e6b5245d1d7faabcc49d3b9eee2d67e88e31fe3c9e61ef737e0c0048fd213aa$''',
+  '''^(?:0x)?96d70d6f6455e9c6954069a35550e375d9d61c54215b2e6c85a382e62fd934fe$''',
+  '''^(?:0x)?ec53c457a808696ff5b5a08a3cae6b651bf86aae5c4dec5d8c1f928550d5d481$''',
+]
+
+[[allowlists]]
+description = "Public generated CIP-8 COSE verification keys; exact test corpus and values only"
+targetRules = ["generic-api-key"]
+condition = "AND"
+regexTarget = "secret"
+paths = ['''(?:^|/)fixtures/wallet\-signatures\.json$''']
+regexes = [
+  '''^(?:0x)?a401010327200621582079b5562e8fe654f94078b112e8a98ba7901f853ae695bed7e0e3910bad049664$''',
+  '''^(?:0x)?a5010102581d600d05c5a2442286038aaf1205a4aaf41a2e9c3bb1c34962d98e63a5040327200621582079b5562e8fe654f94078b112e8a98ba7901f853ae695bed7e0e3910bad049664$''',
+  '''^(?:0x)?a5010102581de00d05c5a2442286038aaf1205a4aaf41a2e9c3bb1c34962d98e63a5040327200621582079b5562e8fe654f94078b112e8a98ba7901f853ae695bed7e0e3910bad049664$''',
+  '''^(?:0x)?a50101025839000d05c5a2442286038aaf1205a4aaf41a2e9c3bb1c34962d98e63a504070707070707070707070707070707070707070707070707070707070327200621582079b5562e8fe654f94078b112e8a98ba7901f853ae695bed7e0e3910bad049664$''',
+  '''^(?:0x)?a50101025839200d05c5a2442286038aaf1205a4aaf41a2e9c3bb1c34962d98e63a504070707070707070707070707070707070707070707070707070707070327200621582079b5562e8fe654f94078b112e8a98ba7901f853ae695bed7e0e3910bad049664$''',
+]

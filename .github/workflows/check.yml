@@ -1,0 +1,396 @@
+name: Source checks
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  merge_group:
+  schedule:
+    - cron: '31 4 * * *'
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      ref:
+        description: Exact immutable repository commit to validate
+        type: string
+        required: true
+      candidate:
+        description: Fresh release validation, no restored caches, 90-day retention
+        type: boolean
+        default: false
+    outputs:
+      context-artifact:
+        description: Artifact containing the shared context.json
+        value: ci-context
+      evidence-prefix:
+        description: Download ci-evidence-* with merge-multiple true
+        value: ci-evidence-
+
+permissions:
+  contents: read
+
+# Only superseded PRs cancel; release validation never shares an ordinary push group.
+concurrency:
+  group: checks-${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}-${{ inputs.candidate || false }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  context:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      commit: ${{ steps.identity.outputs.commit }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 26.8.1
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.13'
+      - id: identity
+        name: Validate immutable input and initialize one evidence context
+        env:
+          EXPECTED_SHA: ${{ inputs.ref || github.sha }}
+          EVIDENCE_MODE: ${{ inputs.candidate && 'candidate' || 'ci' }}
+        run: |
+          [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          python3 scripts/ci/evidence.py init --out .local/ci --mode "$EVIDENCE_MODE"
+          echo "commit=$EXPECTED_SHA" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: ci-context
+          path: |
+            .local/ci/context.json
+            .local/ci/source-inventory.json
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: ${{ inputs.candidate && 90 || 14 }}
+
+  fast:
+    if: ${{ github.event_name != 'schedule' || inputs.candidate }}
+    needs: context
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - node: 22.18.0
+            suite: fast-node22
+          - node: 24.x
+            suite: fast-node24
+          - node: 26.8.1
+            suite: fast-node26
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ needs.context.outputs.commit }}
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: ${{ matrix.node }}
+          check-latest: true
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.13'
+      - uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        if: ${{ !inputs.candidate }}
+        with:
+          path: ~/.npm/_cacache
+          key: ${{ runner.os }}-${{ runner.arch }}-fast-node${{ matrix.node }}-npm11.19.0-${{ hashFiles('package-lock.json') }}
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: ci-context
+          path: .local/ci
+      - name: Repository, TypeScript, units, vendor pins, regression tests and workflow lint
+        env:
+          SUITE: ${{ matrix.suite }}
+        run: |
+          npm install --global npm@11.19.0 --ignore-scripts
+          python3 scripts/ci/evidence.py run --context .local/ci/context.json --suite "$SUITE" --out .local/ci -- bash -euo pipefail -c 'npm ci --ignore-scripts && npm run check:repository && npm run version:check && npm run build:contracts && npm run check:types && npm test && npm run check:vendor && npm run test:ci && python3 scripts/ci/actionlint.py'
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: ci-evidence-${{ matrix.suite }}
+          path: |
+            .local/ci/reports
+            .local/ci/logs
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: ${{ inputs.candidate && 90 || 14 }}
+
+  core:
+    if: ${{ github.event_name != 'schedule' || inputs.candidate }}
+    needs: context
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      ANVIL_BIN: ${{ github.workspace }}/.local/tools/foundry/anvil
+      FORGE_BIN: ${{ github.workspace }}/.local/tools/foundry/forge
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ needs.context.outputs.commit }}
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 26.8.1
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.13'
+      - uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        if: ${{ !inputs.candidate }}
+        with:
+          path: |
+            ~/.npm/_cacache
+            ~/.cache/pip
+          key: ${{ runner.os }}-${{ runner.arch }}-core-node26.8.1-python3.13-npm11.19.0-${{ hashFiles('package-lock.json', 'tests/browser/requirements.txt') }}
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: ci-context
+          path: .local/ci
+      - name: Install pinned validation toolchain
+        run: |
+          npm install --global npm@11.19.0 --ignore-scripts
+          npm ci --ignore-scripts
+          node scripts/install-foundry.mjs
+          python3 -m pip install --require-hashes -r tests/browser/requirements.txt
+          python3 -m playwright install --with-deps chromium
+      - name: Clean source, local execution, consumer, HTTP and browser acceptance
+        run: python3 scripts/ci/evidence.py run --context .local/ci/context.json --suite core --out .local/ci --include core -- python3 scripts/check-clean-source.py --out .local/ci/core
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: ci-evidence-core
+          path: |
+            .local/ci/reports
+            .local/ci/logs
+            .local/ci/core
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: ${{ inputs.candidate && 90 || 14 }}
+
+  bundler:
+    if: ${{ github.event_name != 'schedule' || inputs.candidate }}
+    needs: context
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    env:
+      ANVIL_BIN: ${{ github.workspace }}/.local/tools/foundry/anvil
+      FORGE_BIN: ${{ github.workspace }}/.local/tools/foundry/forge
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ needs.context.outputs.commit }}
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 26.8.1
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.13'
+      - uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        if: ${{ !inputs.candidate }}
+        with:
+          path: ~/.npm/_cacache
+          key: ${{ runner.os }}-${{ runner.arch }}-bundler-node26.8.1-npm11.19.0-${{ hashFiles('package-lock.json', 'infra/bundler/package-lock.json', 'infra/bundler/build-tools/package-lock.json') }}
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: ci-context
+          path: .local/ci
+      - name: Install pinned validation toolchain
+        run: |
+          npm install --global npm@11.19.0 --ignore-scripts
+          npm ci --ignore-scripts
+          node scripts/install-foundry.mjs
+      - name: Separate installs, pinned source rebuild and behavioral acceptance
+        run: python3 scripts/ci/evidence.py run --context .local/ci/context.json --suite bundler --out .local/ci --include bundler -- python3 scripts/ci/run-bundler.py --out .local/ci/bundler
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: ci-evidence-bundler
+          path: |
+            .local/ci/reports
+            .local/ci/logs
+            .local/ci/bundler
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: ${{ inputs.candidate && 90 || 14 }}
+
+  security:
+    needs: context
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ needs.context.outputs.commit }}
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 26.8.1
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.13'
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: ci-context
+          path: .local/ci
+      - name: All three audits, SBOM/license inputs, Gitleaks and exception policy
+        run: |
+          npm install --global npm@11.19.0 --ignore-scripts
+          python3 scripts/ci/evidence.py run --context .local/ci/context.json --suite security --out .local/ci --include security -- python3 scripts/ci/security.py check --out .local/ci/security
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: ci-evidence-security
+          path: |
+            .local/ci/reports
+            .local/ci/logs
+            .local/ci/security
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: ${{ inputs.candidate && 90 || 14 }}
+
+  codeql:
+    needs: context
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    permissions:
+      contents: read
+      security-events: write
+      packages: read
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [javascript-typescript, python, actions]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ needs.context.outputs.commit }}
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 26.8.1
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.13'
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: ci-context
+          path: .local/ci
+      - run: npm install --global npm@11.19.0 --ignore-scripts
+      - uses: github/codeql-action/init@b96794f015dfd88f77b49b1c93e0fa7110f94c63 # v4, verified 2026-09-11
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: none
+          config-file: .github/codeql/config.yml
+          setup-python-dependencies: false
+          dependency-caching: false
+          trap-caching: false
+      - uses: github/codeql-action/analyze@b96794f015dfd88f77b49b1c93e0fa7110f94c63 # v4, verified 2026-09-11
+        with:
+          output: .local/ci/codeql-${{ matrix.language }}/sarif
+          category: /language:${{ matrix.language }}
+          ref: ${{ inputs.candidate && 'refs/heads/main' || github.ref }}
+          sha: ${{ needs.context.outputs.commit }}
+          wait-for-processing: true
+          upload-database: false
+      - name: Block high/critical findings and bind actual SARIF to evidence
+        env:
+          LANGUAGE: ${{ matrix.language }}
+        run: python3 scripts/ci/evidence.py run --context .local/ci/context.json --suite "codeql-$LANGUAGE" --out .local/ci --include "codeql-$LANGUAGE" -- python3 scripts/ci/codeql.py --sarif ".local/ci/codeql-$LANGUAGE/sarif" --out ".local/ci/codeql-$LANGUAGE/policy.json"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: ci-evidence-codeql-${{ matrix.language }}
+          path: |
+            .local/ci/reports
+            .local/ci/logs
+            .local/ci/codeql-${{ matrix.language }}
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: ${{ inputs.candidate && 90 || 14 }}
+
+  ci-required:
+    name: ci-required
+    if: ${{ always() }}
+    needs: [context, fast, core, bundler, security, codeql]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+          persist-credentials: false
+      - name: Require explicit success from every applicable lane
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+          CANDIDATE: ${{ inputs.candidate || false }}
+        run: python3 scripts/ci/required.py --candidate "$CANDIDATE"
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.13'
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: ci-context
+          path: .local/ci
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: ci-evidence-*
+          merge-multiple: true
+          path: .local/ci
+      - name: Require every matrix member's current-run report and evidence hashes
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+          CANDIDATE: ${{ inputs.candidate || false }}
+        run: python3 scripts/ci/required.py --candidate "$CANDIDATE" --context .local/ci/context.json --reports .local/ci/reports
+
+  network:
+    name: Base Sepolia read-only compatibility
+    if: ${{ !inputs.candidate && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') }}
+    needs: context
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ needs.context.outputs.commit }}
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 26.8.1
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.13'
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: ci-context
+          path: .local/ci
+      - name: Existing read-only preflight (separate from local acceptance)
+        run: |
+          npm install --global npm@11.19.0 --ignore-scripts
+          npm ci --ignore-scripts
+          python3 scripts/ci/evidence.py run --context .local/ci/context.json --suite network --out .local/ci --include network -- npm run check:network -- --network=base-sepolia --out=.local/ci/network/preflight.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: network-compatibility
+          path: |
+            .local/ci/reports
+            .local/ci/logs
+            .local/ci/network
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 14

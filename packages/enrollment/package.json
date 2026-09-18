@@ -1,0 +1,34 @@
+{
+  "name": "@cardano-on-evm/enrollment",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "development": "./src/index.ts",
+      "import": "./dist/index.js"
+    },
+    "./sqlite": {
+      "types": "./dist/sqlite.d.ts",
+      "development": "./src/sqlite.ts",
+      "import": "./dist/sqlite.js"
+    }
+  },
+  "dependencies": {
+    "@cardano-on-evm/wallet": "0.1.0",
+    "@cardano-on-evm/protocol": "0.1.0",
+    "@noble/curves": "2.4.0",
+    "@noble/hashes": "2.4.0"
+  },
+  "files": [
+    "dist",
+    "src",
+    "LICENSE",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=22.18.0"
+  }
+}

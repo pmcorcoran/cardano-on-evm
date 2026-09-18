@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cardano on EVM · Wallet laboratory</title>
+  <style>
+    :root { color-scheme: dark; font: 16px/1.6 system-ui, sans-serif; background: #10191f; color: #e8f0f3; }
+    body { max-width: 780px; margin: 48px auto; padding: 0 24px; }
+    h1 { font-size: 2.2rem; line-height: 1.15; margin-bottom: 12px; }
+    .eyebrow { color: #75d4bc; letter-spacing: .1em; text-transform: uppercase; font-size: .8rem; }
+    .muted { color: #adbec7; } fieldset { border: 1px solid #31444e; padding: 24px; border-radius: 12px; margin: 24px 0; }
+    label { display: block; margin: 14px 0; } input, select, button { font: inherit; border-radius: 6px; padding: 10px; }
+    input, select { box-sizing: border-box; width: 100%; background: #172830; color: inherit; border: 1px solid #4c6572; }
+    button { cursor: pointer; background: #91e0c9; color: #0d211a; border: 0; font-weight: 650; margin: 6px 10px 6px 0; }
+    button:disabled { opacity: .4; cursor: default; } pre { white-space: pre-wrap; overflow-wrap: anywhere; padding: 18px; background: #172830; border-radius: 8px; font-size: .8rem; }
+    #status { min-height: 28px; } a { color: #91e0c9; }
+  </style>
+</head>
+<body>
+  <p class="eyebrow">Cardano on EVM / Feasibility</p>
+  <h1>Verify your Cardano signing key.</h1>
+  <p class="muted">This local laboratory checks enrollment and the operation signing format.
+    It requests two data signatures and saves the verified public evidence locally.
+    It does not submit a transaction or ask for private keys.</p>
+  <fieldset>
+    <legend>Wallet details</legend>
+    <label>Wallet<select id="wallet"><option value="lace">Lace</option><option value="eternl">Eternl</option></select></label>
+    <label><span id="version-label">Installed Lace release</span> (from your extension details)<input id="version" required maxlength="80" placeholder="Enter the installed release version"></label>
+    <p class="muted">Enter the extension release, not its CIP-30 API version. Switching wallets requires a new connection and fresh enrollment.</p>
+    <label>Cardano network<select id="network"><option value="0">Testnet</option><option value="1">Mainnet wallet / Base Sepolia destination</option></select></label>
+    <label>Signing credential<select id="credential"><option value="payment">Payment address</option><option value="stake" selected>Reward address · explicit stake key</option></select></label>
+    <button id="connect">Connect Lace</button>
+    <label>Signing address<select id="address" disabled><option>Connect your wallet first</option></select></label>
+    <button id="capture" disabled>Sign and save evidence</button>
+  </fieldset>
+  <p id="status" role="status" aria-live="polite">Ready to connect.</p>
+  <p class="muted">The operation signature is a format probe for Base Sepolia, using a reserved example account and a fresh server nonce. Account deployment and live execution remain separate acceptance checks.</p>
+  <pre id="details">Verified public-key and signing details will appear here.</pre>
+  <p><a href="/live">Review prepared Base Sepolia operations</a></p>
+  <script type="module" src="/wallet.js"></script>
+</body>
+</html>

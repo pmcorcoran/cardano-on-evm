@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "declaration": true,
+    "outDir": "dist",
+    "rootDir": ".",
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "paths": {
+      "@cardano-on-evm/wallet": ["./packages/wallet/src/index.ts"],
+      "@cardano-on-evm/protocol": ["./packages/protocol/src/index.ts"],
+      "@cardano-on-evm/enrollment": ["./packages/enrollment/src/index.ts"],
+      "@cardano-on-evm/enrollment/sqlite": ["./packages/enrollment/src/sqlite.ts"],
+      "@cardano-on-evm/sdk": ["./packages/sdk/src/index.ts"],
+      "@cardano-on-evm/submission": ["./packages/submission/src/index.ts"]
+    },
+    "lib": ["ES2022", "DOM"]
+  },
+  "include": ["packages/*/src/**/*.ts", "tests/**/*.ts", "scripts/**/*.ts", "examples/**/*.ts", "apps/*/*.ts"]
+}

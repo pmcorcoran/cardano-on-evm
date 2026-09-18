@@ -1,0 +1,81 @@
+import { readProfileManifest } from '../lib/identity-manifest.js';
+import './errors.js';
+import assert from 'node:assert/strict';
+import { parseArgs } from 'node:util';
+import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
+import { randomBytes } from 'node:crypto';
+import { createPublicClient, http, encodeFunctionData, parseEther, type Abi, type Address, type Hex } from 'viem';
+import { baseSepolia } from 'viem/chains';
+import { entryPoint07Abi } from 'viem/account-abstraction';
+import { accountFromVerifiedKey, constructOperation, operationHash, operationPayload, operationToJson, packOperation, type CardanoAccount, type ProfileIdentity, type Call } from '../../packages/sdk/src/index.js';
+import { dirname } from 'node:path';
+import { checkLiveRequest, type LiveRequest } from '../lib/live-request.js';
+import { artifacts, entryPoint, kernel, matchesRuntime, json, verifyPreparedProfile } from '../lib/live-context.js';
+import { readWalletCapture } from '../lib/wallet-capture.js';
+
+const { values } = parseArgs({ options: { manifest: { type: 'string' }, out: { type: 'string' }, profile: { type: 'string' }, mode: { type: 'string' }, action: { type: 'string', default: 'increment' }, 'nonce-offset': { type: 'string', default: '0' } } });
+if (!['general', 'targets', 'selectors'].includes(values.profile ?? '') || !['private', 'public', 'direct'].includes(values.mode ?? '') || !['increment', 'batch', 'transfer', 'denied-call'].includes(values.action!)) throw new Error('Choose a prepared profile, submission mode and action');
+if (values.action === 'denied-call' && values.profile === 'general') throw new Error('The negative policy example requires a restricted profile');
+if (!['0', '1'].includes(values['nonce-offset']!)) throw new Error('Only the current nonce or its immediate successor may be prepared');
+const nonceOffset = BigInt(values['nonce-offset']!);
+assert.ok(values.manifest && values.out, '--manifest and --out are required');
+const setup = readProfileManifest(values.manifest);
+assert.equal(setup.chainId, 84532, 'Expected Base Sepolia profile manifest');
+assert.equal(setup.infrastructureVerified, true, 'Verified infrastructure is required');
+assert.ok(!setup.testData, 'Generated fixtures are not public-network preparation records');
+const profile = setup.profiles[values.profile!];
+assert.ok(profile.sdkBackendAndLiveFactoryAgree && profile.factoryRuntimeAndEveryImmutableChecked);
+const { capture, enrollment: verified, challenge, sha256: captureSha256 } = readWalletCapture(profile.sourceCapture);
+assert.equal(profile.sourceCaptureSha256, captureSha256, 'Prepared profile capture bytes changed');
+assert.equal(challenge.baseChainId, setup.chainId, 'Capture and manifest chains differ');
+const account: CardanoAccount = accountFromVerifiedKey(verified, profile.config);
+assert.equal(json(account.identity).toLowerCase(), json(profile.identity).toLowerCase());
+const identity = account.identity as ProfileIdentity;
+const config = account.config;
+assert.ok('profile' in config);
+assert.equal(config.entryPoint.toLowerCase(), entryPoint.toLowerCase(), 'Profile EntryPoint differs from the selected network');
+assert.equal(config.kernelImplementation.toLowerCase(), kernel.toLowerCase(), 'Profile Kernel differs from the selected network');
+const client = createPublicClient({ chain: baseSepolia, transport: http(process.env.BASE_SEPOLIA_RPC_URL ?? 'https://sepolia.base.org') });
+assert.equal(await client.getChainId(), 84532);
+const find = artifacts();
+await verifyPreparedProfile(client, config, identity);
+assert.ok(matchesRuntime((await client.getCode({ address: profile.counter }))!, find('ExperimentCounter')), 'Profile counter differs from the current artifact');
+const currentNonce = await client.readContract({ address: entryPoint, abi: entryPoint07Abi, functionName: 'getNonce', args: [identity.account, 0n] });
+const nonce = currentNonce + nonceOffset;
+const code = await client.getCode({ address: identity.account }); const deploy = !code || code === '0x';
+assert.ok(!deploy || nonceOffset === 0n, 'Deploy the account before preparing a future nonce');
+const pointer = `${values.out}/request-profile-${values.profile}-${nonce}-${values.mode}-${values.action}.json`;
+if (existsSync(pointer)) {
+  const previous = JSON.parse(readFileSync(pointer, 'utf8'));
+  const saved = JSON.parse(readFileSync(previous.file, 'utf8'));
+  const savedOperation = checkLiveRequest(saved);
+  assert.equal(saved.id, previous.id); assert.equal(saved.mode, values.mode);
+  assert.equal(savedOperation.sender.toLowerCase(), identity.account.toLowerCase()); assert.equal(savedOperation.nonce, nonce);
+  assert.equal(saved.publicKey.toLowerCase(), account.publicKey.toLowerCase()); assert.equal(saved.protectedHeaderHash, account.protectedHeaderHash);
+  console.log(json(previous)); process.exit(0);
+}
+const deposit = await client.readContract({ address: entryPoint, abi: entryPoint07Abi, functionName: 'balanceOf', args: [identity.account] });
+assert.ok(deposit >= parseEther('0.0000425') * (nonceOffset + 1n), 'Fund the EntryPoint deposit for every prepared nonce before requesting a signature');
+const increment = (by: bigint): Call => ({ target: profile.counter, value: 0n, data: encodeFunctionData({ abi: find('ExperimentCounter').abi as Abi, functionName: 'increment', args: [by] }) });
+const denied: Call = values.profile === 'targets'
+  ? { target: entryPoint, value: 0n, data: encodeFunctionData({ abi: entryPoint07Abi, functionName: 'balanceOf', args: [identity.account] }) }
+  : { target: profile.counter, value: 0n, data: encodeFunctionData({ abi: find('ExperimentCounter').abi as Abi, functionName: 'number' }) };
+const calls = values.action === 'denied-call' ? [denied] : values.action === 'batch' ? [increment(2n), increment(3n)] : values.action === 'transfer' ? [{ target: profile.permittedRecipient as Address, value: parseEther('0.0000001'), data: '0x' as Hex }] : [increment(1n)];
+if (config.profile === 'restricted' && values.action !== 'denied-call') for (const call of calls) assert.equal(await client.readContract({ address: config.policy, abi: find('ICallPolicy').abi as Abi, functionName: 'checkCall', args: [identity.account, call.target, call.value, call.data, config.policyConfig] }), true, 'Prepared calls must be allowed by the deployed policy');
+assert.ok(await client.getBalance({ address: identity.account }) >= calls.reduce((sum, call) => sum + call.value, 0n), 'Fund the account native balance before requesting a transfer');
+const operation = constructOperation(account, { calls, nonce, deploy, gas: { verificationGasLimit: 500000n, callGasLimit: 250000n, preVerificationGas: 100000n }, fees: { maxFeePerGas: 50000000n, maxPriorityFeePerGas: 2000000n } });
+const hash = operationHash(operation, 84532, entryPoint);
+assert.equal(await client.readContract({ address: entryPoint, abi: entryPoint07Abi, functionName: 'getUserOpHash', args: [packOperation(operation)] }), hash);
+assert.ok('profile' in config);
+const description = values.action === 'batch' ? 'increment the test counter by 2 and 3' : values.action === 'transfer' ? 'transfer 0.0000001 test ETH to the test-funding address' : 'increment the test counter by 1';
+const request: LiveRequest = { ...(capture.wallet?.id ? { walletId: capture.wallet.id } : {}), version: 1, id: randomBytes(32).toString('hex'), createdAt: new Date().toISOString(), title: `${values.profile} · nonce ${nonce} · ${deploy ? 'Deploy account and ' : ''}${description}`, mode: values.mode as LiveRequest['mode'], chainId: 84532, entryPoint, cardanoAddress: account.cardanoAddress, cardanoNetwork: account.cardanoNetwork, credential: account.credential, publicKey: account.publicKey, protectedHeaderHash: account.protectedHeaderHash, userOperationHash: hash, payloadHex: operationPayload(operation, 84532, entryPoint), operation: operationToJson(operation), profile: account.profile, validator: identity.validator, sourceCapture: profile.sourceCapture, profileDetails: { name: values.profile as 'general' | 'targets' | 'selectors', factory: identity.profileFactory, hook: identity.hook, policy: config.policy, policyConfig: config.policyConfig, policyCodeHash: config.policyCodeHash, profileHash: identity.profileHash } };
+if (values.action === 'denied-call') {
+  request.purpose = 'expected-policy-rejection';
+  request.title = `${values.profile} · nonce ${nonce} · EXPECTED POLICY REJECTION: ${values.profile === 'targets' ? 'read EntryPoint balanceOf (unpermitted target)' : 'read counter number (unpermitted function)'}. No transfer; gas can still be charged.`;
+  assert.equal(await client.readContract({ address: config.policy, abi: find('ICallPolicy').abi as Abi, functionName: 'checkCall', args: [identity.account, denied.target, denied.value, denied.data, config.policyConfig] }), false, 'The selected deployed policy must reject this harmless read');
+}
+checkLiveRequest(request);
+mkdirSync(`${values.out}/requests`, { recursive: true });
+const file = `${values.out}/requests/${request.id}.json`;
+writeFileSync(file, json(request), { flag: 'wx' }); writeFileSync(pointer, json({ id: request.id, file }), { flag: 'wx' });
+console.log(json({ file, id: request.id, account: identity.account, profile: values.profile, mode: values.mode, nonce, calls, maximumOperationGasCostWei: '42500000000000' }));

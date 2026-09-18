@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cardano on EVM · Base Sepolia acceptance</title>
+  <style>
+    :root { color-scheme: dark; font: 16px/1.6 system-ui,sans-serif; background:#10191f; color:#e8f0f3 }
+    body { max-width:850px; margin:40px auto; padding:0 22px } h1 { font-size:2.1rem; line-height:1.2 }
+    .eyebrow { color:#91e0c9; text-transform:uppercase; letter-spacing:.09em; font-size:.8rem }
+    .muted { color:#b4c5ce } section { border:1px solid #405761; border-radius:12px; padding:22px; margin:22px 0 }
+    label { display:block; margin:12px 0 } input,select,button { font:inherit; padding:10px; border-radius:6px }
+    input,select { box-sizing:border-box; width:100%; color:inherit; background:#172830; border:1px solid #5d7681 }
+    button { margin:8px 10px 8px 0; border:0; background:#91e0c9; color:#0d211a; font-weight:650; cursor:pointer }
+    button:disabled { opacity:.4; cursor:default } dd { margin:0 0 14px; overflow-wrap:anywhere } dt { color:#b4c5ce }
+    pre { white-space:pre-wrap; overflow-wrap:anywhere; background:#172830; padding:15px; font-size:.8rem }
+    a { color:#91e0c9 } #status { min-height:28px; overflow-wrap:anywhere } .call { padding:12px; border-left:3px solid #91e0c9; margin:12px 0; overflow-wrap:anywhere }
+  </style>
+</head>
+<body>
+  <p class="eyebrow">Cardano on EVM / Base Sepolia</p>
+  <h1>Review and sign a test operation.</h1>
+  <p id="wallet-instructions" class="muted">Your Lace stake key controls the Base account. Each signature authorizes the exact calls shown below and their fee limit. These operations use Base Sepolia test ETH. They do not move Cardano assets.</p>
+  <section>
+    <label>Operation<select id="request"><option>Loading prepared operations…</option></select></label>
+    <button id="refresh">Refresh operations</button>
+    <label>Wallet<select id="wallet"><option value="lace">Lace</option><option value="eternl">Eternl</option></select></label>
+    <label><span id="version-label">Installed Lace release</span><input id="version" required maxlength="80" placeholder="From your extension details"></label>
+    <p class="muted">Enter the extension release, not its CIP-30 API version. Use the wallet used for enrollment. Switching wallets requires fresh enrollment and preparation of an operation for its account.</p>
+    <button id="connect" disabled>Connect Lace</button>
+  </section>
+  <section id="review" hidden>
+    <h2 id="title"></h2>
+    <dl id="context"></dl>
+    <div id="calls"></div>
+    <div id="policy"></div>
+    <p class="muted">This signature authorizes the displayed operation and fee limit. The account authority shown above applies to future operations too.</p>
+    <button id="sign" disabled>Sign reviewed operation</button>
+    <details><summary>Encoded operation and signing payload</summary><pre id="raw"></pre></details>
+  </section>
+  <p id="status" role="status" aria-live="polite">Loading prepared operations.</p>
+  <p class="muted">Signing saves the verified authorization locally. The acceptance runner then submits it through the selected route. Refresh to see the recorded result.</p>
+  <p><a href="/">Wallet signature laboratory</a></p>
+  <script type="module" src="/live.js"></script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+{
+  "name": "cardano-on-evm-alto-source-build-tools",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "description": "Pinned TypeScript tools for the separately installed Alto source; npm lockfile replaces vulnerable upstream pnpm 8",
+  "dependencies": {
+    "typescript": "5.9.2",
+    "tsc-alias": "1.8.16",
+    "@types/yargs": "17.0.33",
+    "solc-0817": "npm:solc@0.8.17",
+    "solc-0823": "npm:solc@0.8.23",
+    "solc-0828": "npm:solc@0.8.28"
+  },
+  "overrides": { "tmp": "0.2.7" }
+}
