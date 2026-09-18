@@ -45,3 +45,43 @@ test('CodeQL execution errors never become empty success', () => {
   failed.runs[0].tool.driver.name = 'other';
   assert.equal(gate(failed).code, 1);
 });
+
+function queryPackSarif(score = '8.0', results = true) {
+  const document = sarif(score, results), run = document.runs[0];
+  run.tool.extensions = [{ name: 'codeql/javascript-queries', rules: run.tool.driver.rules }, { name: 'codeql/javascript-all' }];
+  run.tool.driver.rules = [];
+  for (const result of run.results) result.rule = { id: result.ruleId, index: 0, toolComponent: { index: 0 } };
+  return document;
+}
+test('CodeQL query-pack SARIF uses extension rules and retains the severity gate', () => {
+  assert.equal(gate(queryPackSarif('8.0')).report.findings.length, 1);
+  assert.equal(gate(queryPackSarif('8.0')).code, 1);
+  assert.equal(gate(queryPackSarif('6.9')).code, 0);
+  assert.equal(gate(queryPackSarif('8.0', false)).code, 0);
+  const collision = queryPackSarif('8.0');
+  collision.runs[0].tool.driver.rules = sarif('1.0').runs[0].tool.driver.rules;
+  assert.equal(gate(collision).code, 1, 'a driver rule with the same ID must not hide the extension finding');
+});
+test('CodeQL rejects inconsistent or missing extension rule references', () => {
+  for (const mutate of [
+    r => { r.rule.toolComponent.index = 99; },
+    r => { r.rule.toolComponent.index = true; },
+    r => { r.rule.toolComponent.index = -2; },
+    r => { r.rule.toolComponent.name = 'wrong-pack'; },
+    r => { r.rule.index = 99; },
+    r => { r.ruleIndex = 99; },
+    r => { r.rule.id = 'missing'; },
+    r => { r.ruleId = 'missing'; },
+    r => { delete r.rule; },
+  ]) {
+    const document = queryPackSarif(); mutate(document.runs[0].results[0]);
+    assert.equal(gate(document).code, 1);
+  }
+  const mismatch = queryPackSarif();
+  mismatch.runs[0].tool.extensions[0].rules.push({ id: 'js/other', properties: { 'security-severity': '1' } });
+  mismatch.runs[0].results[0].rule.index = 1;
+  assert.match(gate(mismatch).report.error, /identity mismatch/);
+  const failed = queryPackSarif('8', false);
+  failed.runs[0].invocations[0].executionSuccessful = false;
+  assert.equal(gate(failed).code, 1);
+});

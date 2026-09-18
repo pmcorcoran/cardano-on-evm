@@ -13,7 +13,7 @@
   "scripts": {
     "prepare:worker": "node scripts/prepare.mjs",
     "start": "node src/run.mjs",
-    "test": "node --test --test-isolation=none tests/*.test.mjs"
+    "test": "node --test --experimental-test-isolation=none tests/*.test.mjs"
   },
   "overrides": {
     "@pimlico/alto": {

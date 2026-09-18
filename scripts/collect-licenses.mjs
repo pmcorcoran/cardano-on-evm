@@ -1,5 +1,6 @@
 // Capture notices from the exact installed, separately locked dependency trees.
-import { readFile, readdir, mkdir, writeFile, stat } from 'node:fs/promises';
+import { readFile, readdir, mkdir, writeFile, open } from 'node:fs/promises';
+import { constants } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { resolve, relative } from 'node:path';
 
@@ -25,8 +26,24 @@ for (const root of ['.', 'infra/bundler', 'infra/bundler/build-tools']) {
       item.repository = pkg.repository ?? null;
       for (const entry of await readdir(directory, { withFileTypes: true })) {
         if (!/^(licen[sc]e|copying|notice)([._-]|$)/i.test(entry.name) || !entry.isFile()) continue;
-        const source = resolve(directory, entry.name); assertSmall((await stat(source)).size);
-        const text = await readFile(source), digest = sha(text), file = `${output}/${digest}.txt`;
+        const source = resolve(directory, entry.name);
+        const descriptor = await open(source, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+        let text;
+        try {
+          const info = await descriptor.stat();
+          if (!info.isFile()) throw new Error('License notice must be a regular file');
+          assertSmall(info.size);
+          const buffer = Buffer.alloc(2 * 1024 * 1024 + 1);
+          let size = 0;
+          while (size < buffer.length) {
+            const { bytesRead } = await descriptor.read(buffer, size, buffer.length - size, null);
+            if (!bytesRead) break;
+            size += bytesRead;
+          }
+          assertSmall(size);
+          text = buffer.subarray(0, size);
+        } finally { await descriptor.close(); }
+        const digest = sha(text), file = `${output}/${digest}.txt`;
         await writeFile(file, text);
         item.notices.push({ original: relative(directory, source), sha256: digest, file });
       }

@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, symlinkSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, symlinkSync, renameSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { parseArgs, readArchives, runtimeNodeArgs } from '../../scripts/check-package-install.mjs';
+import { checkConsumer, parseArgs, readArchives, runtimeNodeArgs } from '../../scripts/check-package-install.mjs';
 
 function fixture() {
   const stage = mkdtempSync(join(tmpdir(), 'cardano-consumer-archive-test-'));
@@ -48,6 +48,19 @@ test('consumer rejects an Alto npm alias before any installation', async () => {
   writeFileSync(file, JSON.stringify(meta));
   execFileSync('tar', ['-czf', join(packs, 'cardano-on-evm-sdk-2.3.4.tgz'), '-C', join(stage, 'sdk'), 'package']);
   await assert.rejects(readArchives(packs), /Alto dependencies and aliases/);
+});
+
+test('consumer refuses symlink archives and preserves existing reports', async () => {
+  const { stage, packs } = fixture();
+  const archive = join(packs, 'cardano-on-evm-wallet-2.3.4.tgz');
+  const target = join(stage, 'original.tgz');
+  renameSync(archive, target); symlinkSync(target, archive);
+  await assert.rejects(readArchives(packs), (error) => error.code === 'ELOOP');
+  const out = join(stage, 'consumer'); mkdirSync(out);
+  const report = join(out, 'package-install.json');
+  writeFileSync(report, 'existing evidence');
+  await assert.rejects(checkConsumer({ out, archives: packs }), /Consumer report exists/);
+  assert.equal(readFileSync(report, 'utf8'), 'existing evidence');
 });
 
 test('optional consumer runtime guard is loaded explicitly and denies public RPC', () => {
