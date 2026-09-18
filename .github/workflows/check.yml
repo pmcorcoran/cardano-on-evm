@@ -67,9 +67,10 @@ jobs:
           test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
           python3 scripts/ci/evidence.py init --out .local/ci --mode "$EVIDENCE_MODE"
           echo "commit=$EXPECTED_SHA" >> "$GITHUB_OUTPUT"
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
+          archive: true
           name: ci-context
           path: |
             .local/ci/context.json
@@ -120,9 +121,10 @@ jobs:
         run: |
           npm install --global npm@11.19.0 --ignore-scripts
           python3 scripts/ci/evidence.py run --context .local/ci/context.json --suite "$SUITE" --out .local/ci -- bash -euo pipefail -c 'npm ci --ignore-scripts && npm run check:repository && npm run version:check && npm run build:contracts && npm run check:types && npm test && npm run check:vendor && npm run test:ci && python3 scripts/ci/actionlint.py'
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
+          archive: true
           name: ci-evidence-${{ matrix.suite }}
           path: |
             .local/ci/reports
@@ -170,9 +172,10 @@ jobs:
           python3 -m playwright install --with-deps chromium
       - name: Clean source, local execution, consumer, HTTP and browser acceptance
         run: python3 scripts/ci/evidence.py run --context .local/ci/context.json --suite core --out .local/ci --include core -- python3 scripts/check-clean-source.py --out .local/ci/core
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
+          archive: true
           name: ci-evidence-core
           path: |
             .local/ci/reports
@@ -217,9 +220,10 @@ jobs:
           node scripts/install-foundry.mjs
       - name: Separate installs, pinned source rebuild and behavioral acceptance
         run: python3 scripts/ci/evidence.py run --context .local/ci/context.json --suite bundler --out .local/ci --include bundler -- python3 scripts/ci/run-bundler.py --out .local/ci/bundler
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
+          archive: true
           name: ci-evidence-bundler
           path: |
             .local/ci/reports
@@ -253,9 +257,10 @@ jobs:
         run: |
           npm install --global npm@11.19.0 --ignore-scripts
           python3 scripts/ci/evidence.py run --context .local/ci/context.json --suite security --out .local/ci --include security -- python3 scripts/ci/security.py check --out .local/ci/security
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
+          archive: true
           name: ci-evidence-security
           path: |
             .local/ci/reports
@@ -313,9 +318,10 @@ jobs:
         env:
           LANGUAGE: ${{ matrix.language }}
         run: python3 scripts/ci/evidence.py run --context .local/ci/context.json --suite "codeql-$LANGUAGE" --out .local/ci --include "codeql-$LANGUAGE" -- python3 scripts/ci/codeql.py --sarif ".local/ci/codeql-$LANGUAGE/sarif" --out ".local/ci/codeql-$LANGUAGE/policy.json"
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
+          archive: true
           name: ci-evidence-codeql-${{ matrix.language }}
           path: |
             .local/ci/reports
@@ -385,9 +391,10 @@ jobs:
           npm install --global npm@11.19.0 --ignore-scripts
           npm ci --ignore-scripts
           python3 scripts/ci/evidence.py run --context .local/ci/context.json --suite network --out .local/ci --include network -- npm run check:network -- --network=base-sepolia --out=.local/ci/network/preflight.json
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
+          archive: true
           name: network-compatibility
           path: |
             .local/ci/reports

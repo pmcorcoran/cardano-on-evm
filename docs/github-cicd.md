@@ -444,6 +444,12 @@ Release uploads include every `assets/` file plus `provenance.sigstore.jsonl`.
 Candidate Actions artifacts and their review/publication evidence request
 90-day retention. Repository/organization settings must permit that retention.
 
+The pinned artifact uploader uses explicit `archive: true` so downloaded
+artifacts retain the ZIP format and digest checked below. Provenance generation
+disables registry pushes and storage records; the signed bundle remains part of
+the candidate evidence. Changes to these actions require a complete fresh
+candidate-only run, including the downloaded consumer verification.
+
 The **Verify candidate for review** job downloads the exact artifact ID and
 checks the actual ZIP SHA-256 against both GitHub's metadata and the producing
 job output. It verifies all packaged evidence, hashes and attestations, then
@@ -555,9 +561,9 @@ approval, upload or attestation acceptance evidence. No GitHub repository, App,
 environment, tag, release, approval or deployment was created here.
 
 Official behavior checked for this implementation: [artifact upload inputs and
-digest outputs](https://github.com/actions/upload-artifact/blob/ea165f8d65b6e75b540449e92b4886f43607fa02/action.yml),
+digest outputs](https://github.com/actions/upload-artifact/blob/043fb46d1a93c77aae656e7c1c64a875d1fc6a0a/action.yml),
 [GitHub App token permissions/revocation](https://github.com/actions/create-github-app-token/blob/fee1f7d63c2ff003460e3d139729b119787bc349/action.yml),
-[attestation subject/bundle inputs](https://github.com/actions/attest-build-provenance/blob/977bb373ede98d70efdf65b84cb5f73e068dcc2a/action.yml),
+[attestation subject/bundle inputs](https://github.com/actions/attest-build-provenance/blob/4d101475d8b20a2381f78447822ac1eab6504dd8/action.yml),
 [GitHub CLI attestation identity restrictions](https://cli.github.com/manual/gh_attestation_verify),
 [workflow environment identity](https://docs.github.com/en/actions/reference/workflows-and-actions/variables),
 and [App events triggering ordinary workflows](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow).
