@@ -110,9 +110,11 @@ export function attestationArgs(file, receipt, bundle) {
   assert.equal(receipt.workflow, `${receipt.repository}/${WORKFLOW}@refs/heads/main`);
   // New candidates require release commit == GITHUB_SHA == GITHUB_WORKFLOW_SHA.
   // Recovery verifies the original certificate; it never re-attests older code.
+  // gh makes cert-identity and signer-workflow mutually exclusive. The exact
+  // certificate identity below binds the repository, workflow path and main ref.
   return ['attestation', 'verify', file, '--repo', receipt.repository, '--bundle', bundle,
     '--source-digest', receipt.commit, '--source-ref', 'refs/heads/main',
-    '--signer-workflow', `${receipt.repository}/${WORKFLOW}`, '--signer-digest', receipt.commit,
+    '--signer-digest', receipt.commit,
     '--cert-identity', `https://github.com/${receipt.workflow}`, '--deny-self-hosted-runners', '--format', 'json'];
 }
 

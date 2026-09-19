@@ -116,8 +116,13 @@ test('attestation verification requires a successful result for every final asse
   const verified = verifyAttestations(f.candidate, { gh(args) { called.push(args); return '[{"verificationResult":{}}]'; } });
   assert.equal(verified.length, f.receipt.assets.length); assert.ok(called.some(args => args[2].endsWith('/SHA256SUMS')));
   for (const args of called) {
-    for (const flag of ['--repo', '--bundle', '--source-digest', '--source-ref', '--signer-digest', '--signer-workflow', '--cert-identity', '--deny-self-hosted-runners']) assert.ok(args.includes(flag));
-    assert.equal(args[args.indexOf('--source-digest') + 1], f.receipt.commit);
+    for (const flag of ['--repo', '--bundle', '--source-digest', '--source-ref', '--signer-digest', '--cert-identity', '--deny-self-hosted-runners']) assert.ok(args.includes(flag));
+    // gh accepts exactly one signer identity selector. An exact certificate SAN
+    // preserves the workflow restriction and also pins its ref to main.
+    assert.deepEqual(args.filter(arg => ['--cert-identity', '--cert-identity-regex', '--signer-repo', '--signer-workflow'].includes(arg)), ['--cert-identity']);
+    for (const [flag, value] of Object.entries({ '--repo': f.receipt.repository, '--bundle': f.candidate.bundle,
+      '--source-digest': f.receipt.commit, '--source-ref': 'refs/heads/main', '--signer-digest': f.receipt.commit,
+      '--cert-identity': `https://github.com/${f.receipt.workflow}` })) assert.equal(args[args.indexOf(flag) + 1], value);
   }
   assert.throws(() => verifyAttestations(f.candidate, { gh() { return '[]'; } }), /no verified result/);
   assert.throws(() => verifyAttestations(f.candidate, { gh() { throw new Error('Invalid signature'); } }), /Invalid signature/);

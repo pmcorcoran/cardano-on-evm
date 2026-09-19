@@ -465,7 +465,7 @@ source checkout:
 
 ```sh
 python3 scripts/package-release.py verify --out .local/downloaded-candidate/assets --context .local/downloaded-candidate/assets/context.json
-gh attestation verify .local/downloaded-candidate/assets/SHA256SUMS --repo OWNER/REPO --bundle .local/downloaded-candidate/provenance.sigstore.jsonl --source-digest RELEASE_COMMIT --source-ref refs/heads/main --signer-workflow OWNER/REPO/.github/workflows/release.yml --signer-digest RELEASE_COMMIT --cert-identity https://github.com/OWNER/REPO/.github/workflows/release.yml@refs/heads/main --deny-self-hosted-runners
+gh attestation verify .local/downloaded-candidate/assets/SHA256SUMS --repo OWNER/REPO --bundle .local/downloaded-candidate/provenance.sigstore.jsonl --source-digest RELEASE_COMMIT --source-ref refs/heads/main --signer-digest RELEASE_COMMIT --cert-identity https://github.com/OWNER/REPO/.github/workflows/release.yml@refs/heads/main --deny-self-hosted-runners
 ```
 
 Repeat the attestation command for **every file** in `assets/`, not just the
