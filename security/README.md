@@ -57,8 +57,8 @@ reviewed in the repository's `.gitleaks.toml`; no broad allowlist is installed.
 Gitleaks and actionlint Linux executables are downloaded at explicit versions,
 verified against pinned release-asset SHA-256 digests and atomically extracted.
 
-The committed scanner exceptions require **both an exact path and an exact
-public value**, and apply only to the generic API-key detector. They cover:
+The committed scanner exceptions require **both a named source/evidence path
+and an exact public value**, and apply only to the generic API-key detector. They cover:
 
 - Three public Ed25519 seeds from [RFC 8032 §7.1](https://www.rfc-editor.org/rfc/rfc8032#section-7.1)
   in the pinned SCL test file, the public default Anvil account-zero address/key,
@@ -69,6 +69,17 @@ public value**, and apply only to the generic API-key detector. They cover:
 - The exact existing public COSE verification-key encodings in named captures
   and the generated CIP-8 fixture. These maps contain public key parameter -2
   and no private parameter; `packages/wallet/src/cip8.ts` validates their format.
+- The reward-address and base-address COSE test-key encodings already present
+  in `fixtures/wallet-signatures.json`, when copied into the named core browser
+  and enrollment evidence. Browser exceptions cover only partitions 0–3 of
+  `reference`, `live_review`, and `wallet_credential`, and only JSON resources
+  with SHA-1 filenames inside their trace ZIPs or expanded copies. Enrollment
+  evidence is limited to `core/reference-http-evidence/enrollment-<SHA256>.json`.
+  Both exact public encodings remain required; a different key or credential
+  in those same files still fails. Original and expanded archives remain scanned.
+- The exact public identity key in the frozen
+  `fixtures/address-derivation-v1/protocol-vectors.json` vector
+  `selectors-key-67-headers-1`, including copies inside source archives.
 - One public address-derived request identifier and four deterministic public
   verification keys emitted by `scripts/experiments/crypto-corpus.ts`.
 
@@ -76,7 +87,9 @@ No whole file, directory, history range or rule is disabled. Newly captured
 public data requires review before an additional exact exception. Actual scanner
 regressions prove that an unrelated credential in the same path still fails,
 that moving an allowed value to an unreviewed file fails, and that reports do
-not reveal the synthetic credential. Configuration syntax follows the
+not reveal the synthetic credential. Nested browser ZIP regressions additionally
+check that unrelated credentials beside the public keys still block in the ZIP,
+its expanded resources, and enrollment evidence. Configuration syntax follows the
 [pinned Gitleaks documentation](https://github.com/gitleaks/gitleaks/blob/v8.30.1/README.md#configuration).
 
 The CodeQL matrix analyzes JavaScript/TypeScript, Python and GitHub Actions using
