@@ -3,7 +3,7 @@ title = "Cardano on EVM secret scanning"
 [extend]
 useDefault = true
 
-# Every exception requires BOTH an exact path suffix and an exact public value.
+# Every exception requires BOTH a named source/evidence path and an exact public value.
 # No source, test, history or rule is broadly excluded. See security/README.md.
 
 [[allowlists]]
@@ -95,3 +95,28 @@ regexes = [
   '''^(?:0x)?a50101025839000d05c5a2442286038aaf1205a4aaf41a2e9c3bb1c34962d98e63a504070707070707070707070707070707070707070707070707070707070327200621582079b5562e8fe654f94078b112e8a98ba7901f853ae695bed7e0e3910bad049664$''',
   '''^(?:0x)?a50101025839200d05c5a2442286038aaf1205a4aaf41a2e9c3bb1c34962d98e63a504070707070707070707070707070707070707070707070707070707070327200621582079b5562e8fe654f94078b112e8a98ba7901f853ae695bed7e0e3910bad049664$''',
 ]
+
+[[allowlists]]
+description = "Two existing public CIP-8 test keys in named browser/enrollment evidence, including nested Playwright trace resources"
+targetRules = ["generic-api-key"]
+condition = "AND"
+regexTarget = "secret"
+# The suite/partition names are fixed by the browser acceptance harness. Only
+# the content-addressed resource/enrollment filename varies between runs.
+# Preserve scanning of both original ZIP members and their expanded copies.
+paths = [
+  '''(?:^|/)core/browser/(?:reference|live_review|wallet_credential)_[0-3]-trace\.zip(?:!|\.contents/)resources/[0-9a-f]{40}\.json$''',
+  '''(?:^|/)core/reference-http-evidence/enrollment-[0-9a-f]{64}\.json$''',
+]
+regexes = [
+  '''^(?:0x)?a5010102581de00d05c5a2442286038aaf1205a4aaf41a2e9c3bb1c34962d98e63a5040327200621582079b5562e8fe654f94078b112e8a98ba7901f853ae695bed7e0e3910bad049664$''',
+  '''^(?:0x)?a50101025839000d05c5a2442286038aaf1205a4aaf41a2e9c3bb1c34962d98e63a504070707070707070707070707070707070707070707070707070707070327200621582079b5562e8fe654f94078b112e8a98ba7901f853ae695bed7e0e3910bad049664$''',
+]
+
+[[allowlists]]
+description = "Exact public key from the frozen selectors-key-67-headers-1 address derivation vector"
+targetRules = ["generic-api-key"]
+condition = "AND"
+regexTarget = "secret"
+paths = ['''(?:^|/)fixtures/address-derivation-v1/protocol-vectors\.json$''']
+regexes = ['''^(?:0x)?22fc297792f0b6ffc0bfcfdb7edb0c0aa14e025a365ec0e342e86e3829cb74b6$''']
