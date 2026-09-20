@@ -11,6 +11,10 @@ import { tmpdir } from 'node:os';
 
 const run = promisify(execFile), source = process.cwd();
 export const names = ['wallet', 'protocol', 'enrollment', 'sdk', 'submission', 'contracts'];
+// Keep the runtime-floor and previous consumer coverage alongside the reviewed
+// development declarations. This script also runs from standalone library bundles.
+export const nodeTypeVersions = ['22.18.0', '24.3.1', '26.6.1'];
+export const consumerTypeScriptVersion = '5.9.2';
 const sha = (bytes) => createHash('sha256').update(bytes).digest('hex');
 const json = async (path) => JSON.parse(await readFile(path, 'utf8'));
 
@@ -78,8 +82,8 @@ export async function checkConsumer(options) {
     if (error.code === 'EEXIST') throw new Error('Consumer report exists; use a fresh --out directory');
     throw error;
   }
-  const report = { schemaVersion: 1, kind: 'isolated-installed-core-packages', startedAt: new Date().toISOString(), node: process.version, prebuiltArchives: Boolean(options.archives), packages: [], result: {}, allChecksPassed: false };
-  let blocker, consumer;
+  const report = { schemaVersion: 1, kind: 'isolated-installed-core-packages', startedAt: new Date().toISOString(), node: process.version, prebuiltArchives: Boolean(options.archives), packages: [], consumerChecks: [], result: {}, allChecksPassed: false };
+  let blocker, consumer, consumerOut = options.out;
   try {
     if (options.networkGuard) {
       report.networkGuard = { path: options.networkGuard, sha256: sha(await readRegularFile(options.networkGuard)) };
@@ -93,60 +97,78 @@ export async function checkConsumer(options) {
     }
     const archives = await readArchives(packs);
     report.packages = archives.map(({ path, ...item }) => item);
-    consumer = await mkdtemp(join(tmpdir(), 'cardano-on-evm-consumer-'));
-    report.consumerDirectory = consumer;
-    const registryRequests = [];
-    blocker = createServer((request, response) => {
-      registryRequests.push(request.url);
-      response.writeHead(403, { 'content-type': 'application/json' }).end('{"error":"project packages must come from the local bundle"}');
-    });
-    await new Promise((ready, reject) => { blocker.once('error', reject); blocker.listen(0, '127.0.0.1', ready); });
-    const registry = `http://127.0.0.1:${blocker.address().port}/`;
-    const localPackages = Object.fromEntries(archives.map((item) => [item.name, 'file:' + item.path]));
-    await writeFile(join(consumer, 'package.json'), JSON.stringify({ name: 'isolated-core-consumer', version: '0.0.0', private: true, type: 'module', dependencies: localPackages, overrides: localPackages, devDependencies: { typescript: '5.9.2', '@types/node': '24.3.1' } }));
-    // A fresh manifest, fresh lock, and a denying scope registry exercise npm's
-    // sibling resolution. Root overrides resolve internal exact-version edges to
-    // these same files; without them npm probes registry metadata before dedupe.
-    // Third-party dependencies still use the normal registry.
-    await writeFile(join(consumer, '.npmrc'), `@cardano-on-evm:registry=${registry}\n`);
-    const installed = await run('npm', ['install', '--ignore-scripts', ...(options.offline ? ['--offline'] : []), '--no-audit', '--no-fund', `--@cardano-on-evm:registry=${registry}`], { cwd: consumer, maxBuffer: 4 * 1024 * 1024, env: { ...process.env, NODE_OPTIONS: '', NODE_PATH: '' } });
-    await writeFile(join(options.out, 'npm-install.log'), installed.stdout + installed.stderr);
-    assert.deepEqual(registryRequests, [], 'npm tried to fetch a project package from a registry');
-    const lock = await json(join(consumer, 'package-lock.json'));
-    const projectEntries = Object.entries(lock.packages).filter(([path, entry]) => path.includes('node_modules/@cardano-on-evm/') || entry.name?.startsWith('@cardano-on-evm/'));
-    assert.equal(projectEntries.length, names.length, 'Unexpected or duplicate project packages were installed');
-    assert.ok(!Object.entries(lock.packages).some(([path, entry]) => path.includes('node_modules/@pimlico/alto') || entry.name === '@pimlico/alto'), 'Alto must not be a consumer dependency');
-    // Alias keys can hide package names; inspect installed identities as well as
-    // the lockfile's paths. Optional packages for other platforms may be absent.
-    for (const path of Object.keys(lock.packages).filter((path) => path.startsWith('node_modules/'))) {
-      let installed;
-      try { installed = await json(join(consumer, path, 'package.json')); }
-      catch (error) { if (error.code === 'ENOENT') continue; throw error; }
-      assert.notEqual(installed.name, '@pimlico/alto', 'An installed alias contains Alto');
-      if (installed.name?.startsWith('@cardano-on-evm/')) assert.equal(path, 'node_modules/' + installed.name, 'Project aliases or duplicate project installations are forbidden');
+    for (const nodeTypes of nodeTypeVersions) {
+      consumerOut = join(options.out, 'node-types-' + nodeTypes);
+      await mkdir(consumerOut);
+      consumer = await mkdtemp(join(tmpdir(), 'cardano-on-evm-consumer-'));
+      report.consumerDirectory = consumer;
+      const registryRequests = [];
+      blocker = createServer((request, response) => {
+        registryRequests.push(request.url);
+        response.writeHead(403, { 'content-type': 'application/json' }).end('{"error":"project packages must come from the local bundle"}');
+      });
+      await new Promise((ready, reject) => { blocker.once('error', reject); blocker.listen(0, '127.0.0.1', ready); });
+      const registry = `http://127.0.0.1:${blocker.address().port}/`;
+      const localPackages = Object.fromEntries(archives.map((item) => [item.name, 'file:' + item.path]));
+      await writeFile(join(consumer, 'package.json'), JSON.stringify({ name: 'isolated-core-consumer', version: '0.0.0', private: true, type: 'module', dependencies: localPackages, overrides: localPackages, devDependencies: { typescript: consumerTypeScriptVersion, '@types/node': nodeTypes } }));
+      // A fresh manifest, fresh lock, and a denying scope registry exercise npm's
+      // sibling resolution. Root overrides resolve internal exact-version edges to
+      // these same files; without them npm probes registry metadata before dedupe.
+      // Third-party dependencies still use the normal registry.
+      await writeFile(join(consumer, '.npmrc'), `@cardano-on-evm:registry=${registry}\n`);
+      const installed = await run('npm', ['install', '--ignore-scripts', ...(options.offline ? ['--offline'] : []), '--no-audit', '--no-fund', `--@cardano-on-evm:registry=${registry}`], { cwd: consumer, maxBuffer: 4 * 1024 * 1024, env: { ...process.env, NODE_OPTIONS: '', NODE_PATH: '' } });
+      await writeFile(join(consumerOut, 'npm-install.log'), installed.stdout + installed.stderr);
+      assert.deepEqual(registryRequests, [], 'npm tried to fetch a project package from a registry');
+      const lock = await json(join(consumer, 'package-lock.json'));
+      assert.equal((await json(join(consumer, 'node_modules/@types/node/package.json'))).version, nodeTypes);
+      assert.equal((await json(join(consumer, 'node_modules/typescript/package.json'))).version, consumerTypeScriptVersion);
+      assert.equal(lock.packages['node_modules/@types/node'].version, nodeTypes);
+      const projectEntries = Object.entries(lock.packages).filter(([path, entry]) => path.includes('node_modules/@cardano-on-evm/') || entry.name?.startsWith('@cardano-on-evm/'));
+      assert.equal(projectEntries.length, names.length, 'Unexpected or duplicate project packages were installed');
+      assert.ok(!Object.entries(lock.packages).some(([path, entry]) => path.includes('node_modules/@pimlico/alto') || entry.name === '@pimlico/alto'), 'Alto must not be a consumer dependency');
+      // Alias keys can hide package names; inspect installed identities as well as
+      // the lockfile's paths. Optional packages for other platforms may be absent.
+      for (const path of Object.keys(lock.packages).filter((path) => path.startsWith('node_modules/'))) {
+        let installed;
+        try { installed = await json(join(consumer, path, 'package.json')); }
+        catch (error) { if (error.code === 'ENOENT') continue; throw error; }
+        assert.notEqual(installed.name, '@pimlico/alto', 'An installed alias contains Alto');
+        if (installed.name?.startsWith('@cardano-on-evm/')) assert.equal(path, 'node_modules/' + installed.name, 'Project aliases or duplicate project installations are forbidden');
+      }
+      for (const archive of archives) {
+        const relative = 'node_modules/' + archive.name, entry = lock.packages[relative];
+        assert.equal(entry.version, archive.version);
+        assert.ok(entry.resolved?.startsWith('file:'), 'Project package was not resolved from a local archive');
+        assert.equal(entry.integrity, archive.integrity, 'Installed bytes differ from the archive');
+        assert.ok(!entry.link && !(await lstat(join(consumer, relative))).isSymbolicLink(), 'A workspace link cannot satisfy a consumer test');
+        assert.equal(sha(await readFile(archive.path)), archive.sha256, 'Archive changed during installation');
+      }
+      await writeFile(join(consumer, 'consumer.mjs'), runtimeFixture);
+      await writeFile(join(consumer, 'consumer.ts'), declarationFixture);
+      const compiled = await run(process.execPath, runtimeNodeArgs(options, [join(consumer, 'node_modules/typescript/bin/tsc'), '--noEmit', '--strict', '--target', 'ES2022', '--module', 'NodeNext', '--moduleResolution', 'NodeNext', 'consumer.ts']), { cwd: consumer, maxBuffer: 1024 * 1024, env: { ...process.env, NODE_OPTIONS: '', NODE_PATH: '' } });
+      await writeFile(join(consumerOut, 'declarations.log'), compiled.stdout + compiled.stderr);
+      const executed = await run(process.execPath, runtimeNodeArgs(options, [join(consumer, 'consumer.mjs')]), { cwd: consumer, maxBuffer: 1024 * 1024, env: { ...process.env, NODE_OPTIONS: '', NODE_PATH: '', CARDANO_ON_EVM_TEST_VERSION: archives[0].version } });
+      await writeFile(join(consumerOut, 'esm.log'), executed.stdout + executed.stderr);
+      if (options.networkGuard) assert.equal(sha(await readFile(options.networkGuard)), report.networkGuard.sha256, 'The runtime network guard changed during acceptance');
+      report.result = { ...JSON.parse(executed.stdout.trim()), installedDeclarationsTypecheck: true, sixLibrariesImported: true, projectRegistryRequests: registryRequests.length, allProjectDependenciesLocal: true, workspaceLinksUsed: false, runtimeNetworkGuarded: Boolean(options.networkGuard) };
+      report.lockfileSha256 = sha(await readFile(join(consumer, 'package-lock.json')));
+      for (const [file, destination] of [['package.json', 'consumer-package.json'], ['package-lock.json', 'consumer-package-lock.json']]) {
+        const bytes = await readFile(join(consumer, file));
+        await writeFile(join(consumerOut, destination), bytes);
+        await writeFile(join(options.out, destination), bytes);
+      }
+      report.consumerChecks.push({ nodeTypes, typescript: consumerTypeScriptVersion, undiciTypes: lock.packages['node_modules/undici-types'].version,
+        lockfileSha256: report.lockfileSha256, evidence: 'node-types-' + nodeTypes, skipLibCheck: false, ...report.result });
+      await new Promise((done) => blocker.close(done));
+      blocker = undefined;
+      await rm(consumer, { recursive: true });
+      consumer = undefined;
+      report.consumerRemoved = true;
     }
-    for (const archive of archives) {
-      const relative = 'node_modules/' + archive.name, entry = lock.packages[relative];
-      assert.equal(entry.version, archive.version);
-      assert.ok(entry.resolved?.startsWith('file:'), 'Project package was not resolved from a local archive');
-      assert.equal(entry.integrity, archive.integrity, 'Installed bytes differ from the archive');
-      assert.ok(!entry.link && !(await lstat(join(consumer, relative))).isSymbolicLink(), 'A workspace link cannot satisfy a consumer test');
-      assert.equal(sha(await readFile(archive.path)), archive.sha256, 'Archive changed during installation');
-    }
-    await writeFile(join(consumer, 'consumer.mjs'), runtimeFixture);
-    await writeFile(join(consumer, 'consumer.ts'), declarationFixture);
-    const compiled = await run(process.execPath, runtimeNodeArgs(options, [join(consumer, 'node_modules/typescript/bin/tsc'), '--noEmit', '--strict', '--skipLibCheck', '--target', 'ES2022', '--module', 'NodeNext', '--moduleResolution', 'NodeNext', 'consumer.ts']), { cwd: consumer, maxBuffer: 1024 * 1024, env: { ...process.env, NODE_OPTIONS: '', NODE_PATH: '' } });
-    await writeFile(join(options.out, 'declarations.log'), compiled.stdout + compiled.stderr);
-    const executed = await run(process.execPath, runtimeNodeArgs(options, [join(consumer, 'consumer.mjs')]), { cwd: consumer, maxBuffer: 1024 * 1024, env: { ...process.env, NODE_OPTIONS: '', NODE_PATH: '', CARDANO_ON_EVM_TEST_VERSION: archives[0].version } });
-    await writeFile(join(options.out, 'esm.log'), executed.stdout + executed.stderr);
-    if (options.networkGuard) assert.equal(sha(await readFile(options.networkGuard)), report.networkGuard.sha256, 'The runtime network guard changed during acceptance');
-    report.result = { ...JSON.parse(executed.stdout.trim()), installedDeclarationsTypecheck: true, sixLibrariesImported: true, projectRegistryRequests: registryRequests.length, allProjectDependenciesLocal: true, workspaceLinksUsed: false, runtimeNetworkGuarded: Boolean(options.networkGuard) };
-    report.lockfileSha256 = sha(await readFile(join(consumer, 'package-lock.json')));
-    await writeFile(join(options.out, 'consumer-package-lock.json'), await readFile(join(consumer, 'package-lock.json')));
     report.allChecksPassed = true;
   } catch (error) {
     report.failure = error.message;
-    if (error.stdout || error.stderr) await writeFile(join(options.out, 'failure.log'), (error.stdout ?? '') + (error.stderr ?? ''));
+    if (error.stdout || error.stderr) await writeFile(join(consumerOut, 'failure.log'), (error.stdout ?? '') + (error.stderr ?? ''));
     throw error;
   } finally {
     if (blocker?.listening) await new Promise((done) => blocker.close(done));
@@ -265,9 +287,23 @@ for(const config of configs) {
  await assert.rejects(signOperation({...first,config:{...first.config,addressDerivationMode:'portable'}},op,wallet),/Unsupported configuration field/);
  assert.equal(signerCalls,before,'Unsupported configuration reached the signer');
 }
-assert.equal(typeof SqliteChallengeStore,'function');
+const sqliteStore = new SqliteChallengeStore(':memory:');
+try {
+ const service = createProfileEnrollmentService({application:'https://example.invalid',cardanoNetwork:0,config:general,store:sqliteStore,now:()=>1000,ttlMs:100});
+ const challenge = await service.issue(toHex(address));
+ assert.deepEqual(await sqliteStore.get(challenge.id),challenge);
+ assert.equal(await sqliteStore.consume(challenge.id,'00',1000),false);
+ const signed = await wallet.signData(toHex(address),fromHex(challenge.payloadHex));
+ await service.enroll(challenge.id,signed);
+ assert.equal(await sqliteStore.get(challenge.id),undefined);
+ await assert.rejects(service.enroll(challenge.id,signed),/unavailable|consumed/);
+ const expired = await service.issue(toHex(address));
+ assert.equal(await sqliteStore.consume(expired.id,expired.payloadHex,expired.expiresAt),false);
+ sqliteStore.prune(expired.expiresAt);
+ assert.equal(await sqliteStore.get(expired.id),undefined);
+} finally { sqliteStore.close(); }
 for (const adapter of [createPublicBundlerAdapter,createPrivateBundlerAdapter,createDirectAdapter]) assert.equal(typeof adapter,'function');
-console.log(JSON.stringify({standardNodeEsm:true,installedSdkBackendWalletAndAdapters:true,contractArtifactsMatchGeneratedConfiguration:true,exactPackageExportsVerified:true,exactContractArtifactsVerified:true,contractSourceIntegrityVerified:true,portableCrossChainPrediction:true,chainBoundSigningVerified:true,allProfilesEnrolled:true,deterministicReenrollment:true,generatedAuthorizationVerified:true,unsupportedConfigurationRejectedBeforeSigner:true,privateBundlerInstalled:false,chainTransactionSent:false}));
+console.log(JSON.stringify({standardNodeEsm:true,installedSdkBackendWalletAndAdapters:true,installedSqliteEnrollmentAndExpiryVerified:true,contractArtifactsMatchGeneratedConfiguration:true,exactPackageExportsVerified:true,exactContractArtifactsVerified:true,contractSourceIntegrityVerified:true,portableCrossChainPrediction:true,chainBoundSigningVerified:true,allProfilesEnrolled:true,deterministicReenrollment:true,generatedAuthorizationVerified:true,unsupportedConfigurationRejectedBeforeSigner:true,privateBundlerInstalled:false,chainTransactionSent:false}));
 `;
 const declarationFixture = `
 import { type CardanoAccount, type ProfileIdentityConfig, type ResolvedAccountConfig, constructOperation, signOperation, enrollCardanoAccount } from '@cardano-on-evm/sdk';
