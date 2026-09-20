@@ -107,7 +107,13 @@ with Node declarations **22.18.0/24.3.1/26.6.1**. Compare the six archive hashes
 across all **18** results. Require `allChecksPassed`, all six distinct
 `consumerChecks`, verified compiler/declaration versions, separate logs/lockfiles,
 library declaration checking and every existing ESM/export/enrollment/signing/SQLite
-check. Repeat from the standalone bundle as well. Root package-build and Alto
+check. Both compilers use the original consumer's five unmodified TypeScript
+5.9.2 host libraries (DOM, iterables, worker imports and ScriptHost), with every
+file hash recorded and checked across combinations. This retains browser types
+without the old Node 24.3.1/new DOM `URLPattern` collision; it is not a claim of
+compatibility with TypeScript 7's default DOM library in that combination. The
+root retains its TypeScript 7 ES2022/DOM coverage. Repeat from the standalone
+bundle as well. Root package-build and Alto
 source-build manifests record the actual compilers; Alto includes effective
 module resolution, Node types, root/output directories and the unchanged ESNext
 settings. Confirm native compiler installation/execution on Linux ARM64 locally

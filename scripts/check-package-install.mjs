@@ -15,6 +15,11 @@ export const names = ['wallet', 'protocol', 'enrollment', 'sdk', 'submission', '
 // development declarations. This script also runs from standalone library bundles.
 export const nodeTypeVersions = ['22.18.0', '24.3.1', '26.6.1'];
 export const consumerTypeScriptVersions = ['5.9.2', '7.0.2'];
+// Preserve every host library from the original ES2022 consumer target. Node
+// 24.3.1's URLPattern declaration conflicts with newer DOM declarations; pin
+// the unchanged baseline libraries rather than suppressing declaration checks.
+export const consumerHostTypeScriptVersion = '5.9.2';
+export const consumerHostLibraries = ['dom', 'webworker.importscripts', 'scripthost', 'dom.iterable', 'dom.asynciterable'];
 const sha = (bytes) => createHash('sha256').update(bytes).digest('hex');
 const json = async (path) => JSON.parse(await readFile(path, 'utf8'));
 
@@ -112,7 +117,9 @@ export async function checkConsumer(options, execute = run) {
       await new Promise((ready, reject) => { blocker.once('error', reject); blocker.listen(0, '127.0.0.1', ready); });
       const registry = `http://127.0.0.1:${blocker.address().port}/`;
       const localPackages = Object.fromEntries(archives.map((item) => [item.name, 'file:' + item.path]));
-      await writeFile(join(consumer, 'package.json'), JSON.stringify({ name: 'isolated-core-consumer', version: '0.0.0', private: true, type: 'module', dependencies: localPackages, overrides: localPackages, devDependencies: { typescript, '@types/node': nodeTypes } }));
+      const hostCompiler = typescript === consumerHostTypeScriptVersion ? 'typescript' : 'typescript-host-libs';
+      await writeFile(join(consumer, 'package.json'), JSON.stringify({ name: 'isolated-core-consumer', version: '0.0.0', private: true, type: 'module', dependencies: localPackages, overrides: localPackages,
+        devDependencies: { typescript, '@types/node': nodeTypes, ...(hostCompiler === 'typescript' ? {} : { [hostCompiler]: 'npm:typescript@' + consumerHostTypeScriptVersion }) } }));
       // A fresh manifest, fresh lock, and a denying scope registry exercise npm's
       // sibling resolution. Root overrides resolve internal exact-version edges to
       // these same files; without them npm probes registry metadata before dedupe.
@@ -126,6 +133,13 @@ export async function checkConsumer(options, execute = run) {
       assert.equal((await json(join(consumer, 'node_modules/typescript/package.json'))).version, typescript);
       assert.equal(lock.packages['node_modules/@types/node'].version, nodeTypes);
       assert.equal(lock.packages['node_modules/typescript'].version, typescript);
+      const hostPackage = await json(join(consumer, 'node_modules', hostCompiler, 'package.json'));
+      assert.equal(hostPackage.name, 'typescript');
+      assert.equal(hostPackage.version, consumerHostTypeScriptVersion);
+      assert.equal(lock.packages['node_modules/' + hostCompiler].version, consumerHostTypeScriptVersion);
+      const hostFiles = consumerHostLibraries.map(name => `node_modules/${hostCompiler}/lib/lib.${name}.d.ts`);
+      const hostLibraries = { typescript: consumerHostTypeScriptVersion, files: await Promise.all(hostFiles.map(async path => ({ name: path.split('/').at(-1), sha256: sha(await readRegularFile(join(consumer, path))) }))) };
+      if (report.consumerChecks.length) assert.deepEqual(hostLibraries, report.consumerChecks[0].hostLibraries, 'Consumer host library bytes changed between combinations');
       const compiler = join(consumer, 'node_modules/typescript/bin/tsc');
       const compilerVersion = await execute(process.execPath, runtimeNodeArgs(options, [compiler, '--version']), { cwd: consumer, env: { ...process.env, NODE_OPTIONS: '', NODE_PATH: '' } });
       assert.equal(compilerVersion.stdout.trim(), 'Version ' + typescript, 'Compiler execution differs from installed metadata');
@@ -158,21 +172,26 @@ export async function checkConsumer(options, execute = run) {
       }
       await writeFile(join(consumer, 'consumer.mjs'), runtimeFixture);
       await writeFile(join(consumer, 'consumer.ts'), declarationFixture);
-      const compiled = await execute(process.execPath, runtimeNodeArgs(options, [compiler, '--noEmit', '--strict', '--skipLibCheck', 'false', '--types', 'node', '--target', 'ES2022', '--module', 'NodeNext', '--moduleResolution', 'NodeNext', 'consumer.ts']), { cwd: consumer, maxBuffer: 1024 * 1024, env: { ...process.env, NODE_OPTIONS: '', NODE_PATH: '' } });
+      // An explicit project also prevents a caller's ancestor tsconfig from
+      // changing standalone-bundle behavior (including with a custom TMPDIR).
+      await writeFile(join(consumer, 'tsconfig.json'), JSON.stringify({ files: ['consumer.ts', ...hostFiles] }));
+      // Load ES2022 from the selected compiler and all original host libraries
+      // explicitly from 5.9.2. No declaration is patched, removed or skipped.
+      const compiled = await execute(process.execPath, runtimeNodeArgs(options, [compiler, '-p', 'tsconfig.json', '--noEmit', '--strict', '--skipLibCheck', 'false', '--types', 'node', '--lib', 'ES2022', '--target', 'ES2022', '--module', 'NodeNext', '--moduleResolution', 'NodeNext']), { cwd: consumer, maxBuffer: 1024 * 1024, env: { ...process.env, NODE_OPTIONS: '', NODE_PATH: '' } });
       await writeFile(join(consumerOut, 'declarations.log'), compiled.stdout + compiled.stderr);
       const executed = await execute(process.execPath, runtimeNodeArgs(options, [join(consumer, 'consumer.mjs')]), { cwd: consumer, maxBuffer: 1024 * 1024, env: { ...process.env, NODE_OPTIONS: '', NODE_PATH: '', CARDANO_ON_EVM_TEST_VERSION: archives[0].version } });
       await writeFile(join(consumerOut, 'esm.log'), executed.stdout + executed.stderr);
       if (options.networkGuard) assert.equal(sha(await readFile(options.networkGuard)), report.networkGuard.sha256, 'The runtime network guard changed during acceptance');
       report.result = { ...JSON.parse(executed.stdout.trim()), installedDeclarationsTypecheck: true, sixLibrariesImported: true, projectRegistryRequests: registryRequests.length, allProjectDependenciesLocal: true, workspaceLinksUsed: false, runtimeNetworkGuarded: Boolean(options.networkGuard) };
       report.lockfileSha256 = sha(await readFile(join(consumer, 'package-lock.json')));
-      for (const [file, destination] of [['package.json', 'consumer-package.json'], ['package-lock.json', 'consumer-package-lock.json']]) {
+      for (const [file, destination] of [['package.json', 'consumer-package.json'], ['package-lock.json', 'consumer-package-lock.json'], ['tsconfig.json', 'consumer-tsconfig.json']]) {
         const bytes = await readFile(join(consumer, file));
         await writeFile(join(consumerOut, destination), bytes);
         await writeFile(join(options.out, destination), bytes);
       }
       report.consumerChecks.push({ nodeTypes, typescript, compilerVersion: compilerVersion.stdout.trim(), platform: process.platform, arch: process.arch,
         nativeCompiler: nativeCompiler ? { name: nativeName, version: nativeCompiler.version } : null, undiciTypes: lock.packages['node_modules/undici-types'].version,
-        lockfileSha256: report.lockfileSha256, evidence, skipLibCheck: false, ...report.result });
+        lockfileSha256: report.lockfileSha256, evidence, libraries: ['ES2022', ...consumerHostLibraries], hostLibraries, skipLibCheck: false, ...report.result });
       await new Promise((done) => blocker.close(done));
       blocker = undefined;
       await rm(consumer, { recursive: true });
@@ -188,7 +207,7 @@ export async function checkConsumer(options, execute = run) {
   } finally {
     if (blocker?.listening) await new Promise((done) => blocker.close(done));
     if (consumer) {
-      for (const [file, destination] of [['package.json', 'consumer-package.json'], ['package-lock.json', 'consumer-package-lock.json']]) {
+      for (const [file, destination] of [['package.json', 'consumer-package.json'], ['package-lock.json', 'consumer-package-lock.json'], ['tsconfig.json', 'consumer-tsconfig.json']]) {
         try {
           const bytes = await readFile(join(consumer, file));
           await writeFile(join(consumerOut, destination), bytes);

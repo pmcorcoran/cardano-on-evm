@@ -4,12 +4,14 @@ import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, symlinkSync, renam
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { checkConsumer, consumerTypeScriptVersions, nodeTypeVersions, parseArgs, readArchives, runtimeNodeArgs } from '../../scripts/check-package-install.mjs';
+import { checkConsumer, consumerTypeScriptVersions, consumerHostLibraries, consumerHostTypeScriptVersion, nodeTypeVersions, parseArgs, readArchives, runtimeNodeArgs } from '../../scripts/check-package-install.mjs';
 
 test('consumer matrix checks the runtime floor, previous types, and exact development types', () => {
   const root = JSON.parse(readFileSync('package.json', 'utf8'));
   assert.deepEqual(consumerTypeScriptVersions, ['5.9.2', root.devDependencies.typescript]);
   assert.equal(new Set(consumerTypeScriptVersions).size, consumerTypeScriptVersions.length);
+  assert.equal(consumerHostTypeScriptVersion, '5.9.2');
+  assert.deepEqual(consumerHostLibraries, ['dom', 'webworker.importscripts', 'scripthost', 'dom.iterable', 'dom.asynciterable']);
   assert.deepEqual(nodeTypeVersions, ['22.18.0', '24.3.1', root.devDependencies['@types/node']]);
   assert.equal(new Set(nodeTypeVersions).size, nodeTypeVersions.length);
 });
@@ -42,11 +44,18 @@ test('consumer executes all six compiler/declaration pairs and preserves separat
         'node_modules/@types/node': { version: nodeTypes },
         'node_modules/undici-types': { version: 'fixture' },
       });
-      if (typescript === '7.0.2') packages[`node_modules/@typescript/typescript-${process.platform}-${process.arch}`] = { version: typescript };
+      if (typescript === '7.0.2') {
+        packages[`node_modules/@typescript/typescript-${process.platform}-${process.arch}`] = { version: typescript };
+        assert.equal(meta.devDependencies['typescript-host-libs'], 'npm:typescript@5.9.2');
+        packages['node_modules/typescript-host-libs'] = { version: '5.9.2' };
+      }
       for (const [path, entry] of Object.entries(packages)) {
         mkdirSync(join(cwd, path), { recursive: true });
-        writeFileSync(join(cwd, path, 'package.json'), JSON.stringify({ name: path.slice(13), version: entry.version }));
+        writeFileSync(join(cwd, path, 'package.json'), JSON.stringify({ name: path.endsWith('/typescript-host-libs') ? 'typescript' : path.slice(13), version: entry.version }));
       }
+      const hostCompiler = typescript === '5.9.2' ? 'typescript' : 'typescript-host-libs';
+      mkdirSync(join(cwd, 'node_modules', hostCompiler, 'lib'));
+      for (const name of consumerHostLibraries) writeFileSync(join(cwd, 'node_modules', hostCompiler, `lib/lib.${name}.d.ts`), '// controlled host library ' + name);
       writeFileSync(join(cwd, 'package-lock.json'), JSON.stringify({ packages }));
       calls.push([pair, 'install']);
       return { stdout: 'controlled install\n', stderr: '' };
@@ -58,6 +67,11 @@ test('consumer executes all six compiler/declaration pairs and preserves separat
     }
     if (args.includes('--noEmit')) {
       assert.equal(args[args.indexOf('--skipLibCheck') + 1], 'false');
+      assert.equal(args[args.indexOf('--lib') + 1], 'ES2022');
+      assert.equal(args[args.indexOf('--types') + 1], 'node');
+      assert.equal(args[args.indexOf('-p') + 1], 'tsconfig.json');
+      const hostCompiler = typescript === '5.9.2' ? 'typescript' : 'typescript-host-libs';
+      assert.deepEqual(JSON.parse(readFileSync(join(cwd, 'tsconfig.json'), 'utf8')), { files: ['consumer.ts', ...consumerHostLibraries.map(name => `node_modules/${hostCompiler}/lib/lib.${name}.d.ts`)] });
       assert.ok(args.includes('--strict'));
       assert.match(readFileSync(join(cwd, 'consumer.ts'), 'utf8'), /@cardano-on-evm\/enrollment\/sqlite/);
       calls.push([pair, 'declarations']);
@@ -79,6 +93,9 @@ test('consumer executes all six compiler/declaration pairs and preserves separat
     const lock = JSON.parse(readFileSync(join(directory, 'consumer-package-lock.json'), 'utf8'));
     assert.equal(lock.packages['node_modules/typescript'].version, check.typescript);
     assert.equal(lock.packages['node_modules/@types/node'].version, check.nodeTypes);
+    assert.equal(check.hostLibraries.typescript, '5.9.2');
+    assert.equal(check.hostLibraries.files.length, 5);
+    assert.deepEqual(check.hostLibraries, report.consumerChecks[0].hostLibraries);
     for (const file of ['compiler-version.log', 'npm-install.log', 'declarations.log', 'esm.log']) readFileSync(join(directory, file));
   }
 

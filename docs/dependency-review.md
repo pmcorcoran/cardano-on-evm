@@ -118,11 +118,29 @@ consumer checker runs all six TypeScript/Node-declaration pairs on each runtime:
 six archives and pass the same `--archives` directory for all **18** consumers.
 Every pair requires declarations with `skipLibCheck: false`, existing ESM/export,
 enrollment, signing and SQLite checks, and exact local sibling archive integrity.
+The original consumer target implicitly included DOM, DOM iterables, worker
+import scripts and ScriptHost declarations. Every pair now explicitly includes
+those same **unmodified TypeScript 5.9.2 host-library files**, with ES2022 from
+the selected compiler. TypeScript 7 consumers install the exact npm alias
+`typescript-host-libs: npm:typescript@5.9.2`; this is consumer-only validation
+input and is absent from the public packages and all three repository locks.
+Each report verifies its installed version and records all five file hashes,
+requiring identical host-library bytes between combinations. No declaration is
+patched, deleted or skipped, and all previous browser declaration coverage remains.
+
+This holds the browser API baseline fixed while changing compiler and Node
+versions. Node 24.3.1 declares `URLPattern` incompatibly with TypeScript 7's newer
+bundled DOM library. Using that newer DOM library with the old Node declaration
+version is **not** claimed to pass. Removing DOM also fails dependency declarations
+for WebCrypto/WebAuthn, so it is not an accepted workaround. The root retains its
+TypeScript 7 ES2022/DOM libraries, full declaration check and browser acceptance.
+An explicit consumer project keeps ancestor configurations from affecting
+standalone bundles or custom temporary directories.
 
 `package-install.json` records each executed compiler, installed Node/Undici
 declarations, native platform package, archive hashes and consumer lock hash.
 Each `typescript-VERSION-node-types-VERSION/` directory retains its own manifest,
-lockfile and install/compiler/declaration/ESM logs. A later pair's failure leaves
+lockfile, project configuration and install/compiler/declaration/ESM logs. A later pair's failure leaves
 the aggregate unsuccessful. The same checker works in a standalone library bundle
 without a root workspace manifest. Focused regressions exercise the full loop,
 its failure path and the source-only patch's idempotence/tamper rejection.
