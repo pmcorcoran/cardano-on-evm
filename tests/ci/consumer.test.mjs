@@ -4,7 +4,14 @@ import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, symlinkSync, renam
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { checkConsumer, parseArgs, readArchives, runtimeNodeArgs } from '../../scripts/check-package-install.mjs';
+import { checkConsumer, consumerTypeScriptVersion, nodeTypeVersions, parseArgs, readArchives, runtimeNodeArgs } from '../../scripts/check-package-install.mjs';
+
+test('consumer matrix checks the runtime floor, previous types, and exact development types', () => {
+  const root = JSON.parse(readFileSync('package.json', 'utf8'));
+  assert.equal(consumerTypeScriptVersion, root.devDependencies.typescript);
+  assert.deepEqual(nodeTypeVersions, ['22.18.0', '24.3.1', root.devDependencies['@types/node']]);
+  assert.equal(new Set(nodeTypeVersions).size, nodeTypeVersions.length);
+});
 
 function fixture() {
   const stage = mkdtempSync(join(tmpdir(), 'cardano-consumer-archive-test-'));

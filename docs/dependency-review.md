@@ -11,13 +11,14 @@ The following reviews retain the supported Node 22.18.0 floor and the pinned
 Alto source. The package-specific major-version filters in
 [Dependabot configuration](../.github/dependabot.yml) leave minor, patch, and
 [security updates enabled](https://github.blog/changelog/2021-05-21-dependabot-version-updates-can-now-ignore-major-minor-patch-releases/).
-They do not change the all-severity audit policy. Remove each filter only with
-its reviewed replacement and the validation described below.
+They do not change the all-severity audit policy. Keep each filter until a
+separate reviewed decision changes that policy; adopting one reviewed version
+does not authorize future major upgrades.
 
-- [Node types #1](https://github.com/pmcorcoran/cardano-on-evm/pull/1): defer
-  Node 26 declarations until an API review rules out accidental reliance on
-  newer runtime APIs. Check declarations and isolated package consumers on
-  Node 22.18, 24, and 26 while preserving the public API and address fixtures.
+- [Node types #1](https://github.com/pmcorcoran/cardano-on-evm/pull/1): the
+  narrowly scoped replacement retains the original **24.3.1 to 26.6.1** proposal
+  and the Node **22.18.0** runtime floor. The review and consumer coverage are
+  described below. The major-version hold remains for future unreviewed updates.
 - [TypeScript #12](https://github.com/pmcorcoran/cardano-on-evm/pull/12) and
   [#13](https://github.com/pmcorcoran/cardano-on-evm/pull/13): defer TypeScript 7
   as a coordinated compiler migration across the root and Alto build tools.
@@ -44,6 +45,53 @@ its reviewed replacement and the validation described below.
   release publication must remain disabled. See the
   [version workflow](../.github/workflows/version.yml) and
   [CI runbook](github-cicd.md).
+
+## Node declaration compatibility
+
+The root development dependency changes from `@types/node` 24.3.1 to 26.6.1.
+Its sole dependency changes from `undici-types` 7.10.0 to 8.9.0. Both packages
+contain declarations; this does not install or replace Node's runtime Undici.
+The minimum TypeScript version declared by the Node types rises from 5.2 to 5.6;
+the root and Alto compiler remain pinned to 5.9.2. No TypeScript migration or
+bundler lockfile update is part of this change.
+
+Newer declarations do not establish runtime compatibility. Review project
+source, tooling, tests, and emitted declarations against the
+[Node 22.18.0 API documentation](https://nodejs.org/download/release/v22.18.0/docs/api/).
+The relevant boundaries are:
+
+| Boundary | Node 22-compatible usage and coverage |
+| --- | --- |
+| Enrollment persistence | `DatabaseSync`, `exec`, `prepare`, statement `run`/`get`, and `close`; installed consumers exercise enrollment, wrong-payload rejection, one-time consumption, expiry and pruning |
+| Crypto and byte handling | `randomBytes`, `createHash`, `createPublicKey`, `verify`, `timingSafeEqual`, and ordinary Buffer conversion/concatenation; frozen wallet vectors and independent Ed25519 checks retain their expected values |
+| HTTP and Fetch | HTTP servers, Fetch requests/responses, body readers, abort signals, and JSON responses; HTTP/browser acceptance and adapter tests exercise these on their actual runtimes |
+| Tooling and workers | File/path operations, child processes, signals, `parseArgs`, `parseEnv`, and the existing module network guard; fast checks and installed/source worker tests retain their supported interfaces |
+
+The Node 26 declarations also expose APIs unavailable at the runtime floor,
+including SQLite statement caches and authorizers, disposable temporary
+directories, and configurable `Assert` instances. Their availability
+to the compiler is not permission to use them. Keep the existing compatible
+operations and require actual Node 22.18.0 execution when changing these paths.
+
+`scripts/check-package-install.mjs` installs the same six archives in fresh
+consumers using **22.18.0**, **24.3.1**, and **26.6.1** Node declarations with
+TypeScript **5.9.2**. It verifies the installed versions, checks declaration
+files without `skipLibCheck`, and runs the ESM/API, enrollment, signing and
+SQLite checks for every consumer. Each consumer retains its lockfile, exact
+declaration and Undici type versions, and logs in the report directory. This
+also works from the standalone library bundle without a workspace manifest.
+
+For this upgrade, perform clean installs, contract generation, type checking,
+builds, units and CI regressions on Node **22.18.0**, **24.21.0**, and **26.8.1**.
+Run the [full acceptance procedure](acceptance.md), including browsers and the
+Alto source rebuild. Reuse the newly built `consumer/archives` directory for
+the isolated consumer command on all three runtimes, comparing the six archive
+hashes across reports. Record fresh all-severity audits for all three trees.
+Historical checks on the closed proposal do not satisfy these requirements.
+
+This changes development declarations and validation tooling. Public package
+sources, APIs, engine floors, fixtures, vendored inputs and compiler settings
+remain unchanged, so it does not require a package Changeset.
 
 ## Coordinated runtime migration
 
