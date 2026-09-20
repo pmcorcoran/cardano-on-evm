@@ -4,11 +4,12 @@ import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, symlinkSync, renam
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { checkConsumer, consumerTypeScriptVersion, nodeTypeVersions, parseArgs, readArchives, runtimeNodeArgs } from '../../scripts/check-package-install.mjs';
+import { checkConsumer, consumerTypeScriptVersions, nodeTypeVersions, parseArgs, readArchives, runtimeNodeArgs } from '../../scripts/check-package-install.mjs';
 
 test('consumer matrix checks the runtime floor, previous types, and exact development types', () => {
   const root = JSON.parse(readFileSync('package.json', 'utf8'));
-  assert.equal(consumerTypeScriptVersion, root.devDependencies.typescript);
+  assert.deepEqual(consumerTypeScriptVersions, ['5.9.2', root.devDependencies.typescript]);
+  assert.equal(new Set(consumerTypeScriptVersions).size, consumerTypeScriptVersions.length);
   assert.deepEqual(nodeTypeVersions, ['22.18.0', '24.3.1', root.devDependencies['@types/node']]);
   assert.equal(new Set(nodeTypeVersions).size, nodeTypeVersions.length);
 });
@@ -23,6 +24,77 @@ function fixture() {
   }
   return { stage, packs };
 }
+
+test('consumer executes all six compiler/declaration pairs and preserves separate evidence', async () => {
+  const { stage, packs } = fixture();
+  const archives = await readArchives(packs), calls = [];
+  const out = join(stage, 'matrix');
+  const execute = async (command, args, { cwd }) => {
+    const meta = JSON.parse(readFileSync(join(cwd, 'package.json'), 'utf8'));
+    const { typescript, '@types/node': nodeTypes } = meta.devDependencies;
+    const pair = `${typescript}/${nodeTypes}`;
+    if (command === 'npm') {
+      assert.equal(args[0], 'install');
+      assert.ok(args.includes('--ignore-scripts'));
+      const packages = Object.fromEntries(archives.map(a => ['node_modules/' + a.name, { version: a.version, resolved: 'file:' + a.path, integrity: a.integrity }]));
+      Object.assign(packages, {
+        'node_modules/typescript': { version: typescript },
+        'node_modules/@types/node': { version: nodeTypes },
+        'node_modules/undici-types': { version: 'fixture' },
+      });
+      if (typescript === '7.0.2') packages[`node_modules/@typescript/typescript-${process.platform}-${process.arch}`] = { version: typescript };
+      for (const [path, entry] of Object.entries(packages)) {
+        mkdirSync(join(cwd, path), { recursive: true });
+        writeFileSync(join(cwd, path, 'package.json'), JSON.stringify({ name: path.slice(13), version: entry.version }));
+      }
+      writeFileSync(join(cwd, 'package-lock.json'), JSON.stringify({ packages }));
+      calls.push([pair, 'install']);
+      return { stdout: 'controlled install\n', stderr: '' };
+    }
+    assert.equal(command, process.execPath);
+    if (args.includes('--version')) {
+      calls.push([pair, 'version']);
+      return { stdout: `Version ${typescript}\n`, stderr: '' };
+    }
+    if (args.includes('--noEmit')) {
+      assert.equal(args[args.indexOf('--skipLibCheck') + 1], 'false');
+      assert.ok(args.includes('--strict'));
+      assert.match(readFileSync(join(cwd, 'consumer.ts'), 'utf8'), /@cardano-on-evm\/enrollment\/sqlite/);
+      calls.push([pair, 'declarations']);
+      return { stdout: '', stderr: '' };
+    }
+    assert.equal(args.at(-1), join(cwd, 'consumer.mjs'));
+    assert.match(readFileSync(args.at(-1), 'utf8'), /SqliteChallengeStore/);
+    calls.push([pair, 'runtime']);
+    return { stdout: JSON.stringify({ fixture: true }), stderr: '' };
+  };
+  const report = await checkConsumer({ out, archives: packs }, execute);
+  const expected = ['5.9.2', '7.0.2'].flatMap(ts => ['22.18.0', '24.3.1', '26.6.1'].map(types => `${ts}/${types}`));
+  assert.deepEqual(calls, expected.flatMap(pair => ['install', 'version', 'declarations', 'runtime'].map(step => [pair, step])));
+  assert.equal(report.allChecksPassed, true);
+  assert.deepEqual(report.consumerChecks.map(c => `${c.typescript}/${c.nodeTypes}`), expected);
+  assert.equal(new Set(report.consumerChecks.map(c => c.evidence)).size, 6);
+  for (const check of report.consumerChecks) {
+    const directory = join(out, check.evidence);
+    const lock = JSON.parse(readFileSync(join(directory, 'consumer-package-lock.json'), 'utf8'));
+    assert.equal(lock.packages['node_modules/typescript'].version, check.typescript);
+    assert.equal(lock.packages['node_modules/@types/node'].version, check.nodeTypes);
+    for (const file of ['compiler-version.log', 'npm-install.log', 'declarations.log', 'esm.log']) readFileSync(join(directory, file));
+  }
+
+  // A later compiler failure cannot leave a successful aggregate report.
+  const failedOut = join(stage, 'failed-matrix');
+  await assert.rejects(checkConsumer({ out: failedOut, archives: packs }, async (command, args, options) => {
+    const meta = JSON.parse(readFileSync(join(options.cwd, 'package.json'), 'utf8'));
+    if (meta.devDependencies.typescript === '7.0.2' && args.includes('--noEmit')) throw new Error('controlled compiler failure');
+    return execute(command, args, options);
+  }), /controlled compiler failure/);
+  const failed = JSON.parse(readFileSync(join(failedOut, 'package-install.json'), 'utf8'));
+  assert.equal(failed.allChecksPassed, false);
+  assert.equal(failed.consumerChecks.length, 3);
+  assert.equal(failed.consumerRemoved, true);
+  readFileSync(join(failedOut, 'typescript-7.0.2-node-types-22.18.0/consumer-package-lock.json'));
+});
 
 test('prebuilt archive interface reads exactly six coordinated tarballs without npm pack', async () => {
   const { packs } = fixture();

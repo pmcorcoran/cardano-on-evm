@@ -91,6 +91,36 @@ onchain deployment rows; directory names alone prove nothing. CI release
 publication has additional security and maintainer gates in the
 [operator guide](github-cicd.md).
 
+## TypeScript migration compatibility
+
+The root and Alto source build tools use TypeScript **7.0.2**. Public packages
+also support TypeScript **5.9.2** consumers. For a compiler change, repeat clean
+installation, contract generation, type checking, builds, unit/CI regressions
+and repository/vendor checks on Node **22.18.0**, **24.21.0**, and **26.8.1**.
+Also run `node node_modules/typescript/bin/tsc --noEmit --skipLibCheck false`.
+Preserve the emitted-output comparison against a fresh baseline and review every
+compiler-generated JavaScript/declaration difference for API and runtime parity.
+
+Build six archives once, then use the `--archives` command above on all three
+runtimes. Each invocation requires six consumers: TypeScript **5.9.2/7.0.2**
+with Node declarations **22.18.0/24.3.1/26.6.1**. Compare the six archive hashes
+across all **18** results. Require `allChecksPassed`, all six distinct
+`consumerChecks`, verified compiler/declaration versions, separate logs/lockfiles,
+library declaration checking and every existing ESM/export/enrollment/signing/SQLite
+check. Repeat from the standalone bundle as well. Root package-build and Alto
+source-build manifests record the actual compilers; Alto includes effective
+module resolution, Node types, root/output directories and the unchanged ESNext
+settings. Confirm native compiler installation/execution on Linux ARM64 locally
+and Linux x64 in CI after `npm ci --ignore-scripts`.
+
+Require a fresh Alto rebuild with all nine creation/runtime bytecode comparisons,
+resolvable emitted JavaScript imports and CLI startup. Execute installed/source
+worker regressions on all three runtimes. Run the full clean-source procedure,
+including browsers/local chains, fresh three-tree all-severity audits and
+`node scripts/collect-licenses.mjs`. The original source pins, vendored files,
+Solidity settings, frozen fixtures and public API expectations remain fixed.
+See [dependency review](dependency-review.md) for the source-only yargs patch.
+
 ## Eternl support acceptance
 
 The [wallet validation guide](eternl-acceptance.md) describes desktop-wallet

@@ -51,6 +51,7 @@ test('library packaging drops stale compiler output and preserves package source
   const stage = mkdtempSync(join(tmpdir(), 'cardano-library-package-build-'));
   try {
     put(stage, 'LICENSE', 'license\n');
+    put(stage, 'node_modules/typescript/bin/tsc', "console.log('Version fixture compiler');\n");
     for (const name of ['wallet', 'protocol', 'enrollment', 'sdk', 'submission']) {
       put(stage, `packages/${name}/package.json`, { name: '@cardano-on-evm/' + name, version: '0.1.0' });
       put(stage, `packages/${name}/README.md`, 'readme\n');
@@ -68,7 +69,10 @@ test('library packaging drops stale compiler output and preserves package source
       assert.equal(readFileSync(join(stage, `packages/${name}/README.md`), 'utf8'), 'readme\n');
     }
     const build = JSON.parse(readFileSync(join(stage, 'artifacts/package-build.json'), 'utf8'));
-    assert.deepEqual(Object.keys(build).sort(), ['addressDerivationMode', 'kind', 'packages']);
+    assert.deepEqual(Object.keys(build).sort(), ['addressDerivationMode', 'arch', 'kind', 'packages', 'platform', 'typescriptVersion']);
+    assert.equal(build.typescriptVersion, 'Version fixture compiler');
+    assert.equal(build.platform, process.platform);
+    assert.equal(build.arch, process.arch);
     assert.equal(build.addressDerivationMode, 'portable');
     assert.equal(build.packages.length, 10);
   } finally { rmSync(stage, { recursive: true, force: true }); }

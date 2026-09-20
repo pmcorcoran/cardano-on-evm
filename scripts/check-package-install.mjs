@@ -14,7 +14,7 @@ export const names = ['wallet', 'protocol', 'enrollment', 'sdk', 'submission', '
 // Keep the runtime-floor and previous consumer coverage alongside the reviewed
 // development declarations. This script also runs from standalone library bundles.
 export const nodeTypeVersions = ['22.18.0', '24.3.1', '26.6.1'];
-export const consumerTypeScriptVersion = '5.9.2';
+export const consumerTypeScriptVersions = ['5.9.2', '7.0.2'];
 const sha = (bytes) => createHash('sha256').update(bytes).digest('hex');
 const json = async (path) => JSON.parse(await readFile(path, 'utf8'));
 
@@ -73,7 +73,7 @@ export async function readArchives(directory) {
   return archives;
 }
 
-export async function checkConsumer(options) {
+export async function checkConsumer(options, execute = run) {
   await mkdir(options.out, { recursive: true });
   const reportPath = join(options.out, 'package-install.json');
   let reportFile;
@@ -92,13 +92,15 @@ export async function checkConsumer(options) {
     if (!options.archives) {
       await mkdir(packs, { recursive: true });
       for (const name of names) {
-        await run('npm', ['pack', '--workspace', `@cardano-on-evm/${name}`, '--pack-destination', packs, '--json', '--ignore-scripts'], { cwd: source, maxBuffer: 1024 * 1024 });
+        await execute('npm', ['pack', '--workspace', `@cardano-on-evm/${name}`, '--pack-destination', packs, '--json', '--ignore-scripts'], { cwd: source, maxBuffer: 1024 * 1024 });
       }
     }
     const archives = await readArchives(packs);
     report.packages = archives.map(({ path, ...item }) => item);
-    for (const nodeTypes of nodeTypeVersions) {
-      consumerOut = join(options.out, 'node-types-' + nodeTypes);
+    const combinations = consumerTypeScriptVersions.flatMap(typescript => nodeTypeVersions.map(nodeTypes => ({ typescript, nodeTypes })));
+    for (const { typescript, nodeTypes } of combinations) {
+      const evidence = `typescript-${typescript}-node-types-${nodeTypes}`;
+      consumerOut = join(options.out, evidence);
       await mkdir(consumerOut);
       consumer = await mkdtemp(join(tmpdir(), 'cardano-on-evm-consumer-'));
       report.consumerDirectory = consumer;
@@ -110,19 +112,30 @@ export async function checkConsumer(options) {
       await new Promise((ready, reject) => { blocker.once('error', reject); blocker.listen(0, '127.0.0.1', ready); });
       const registry = `http://127.0.0.1:${blocker.address().port}/`;
       const localPackages = Object.fromEntries(archives.map((item) => [item.name, 'file:' + item.path]));
-      await writeFile(join(consumer, 'package.json'), JSON.stringify({ name: 'isolated-core-consumer', version: '0.0.0', private: true, type: 'module', dependencies: localPackages, overrides: localPackages, devDependencies: { typescript: consumerTypeScriptVersion, '@types/node': nodeTypes } }));
+      await writeFile(join(consumer, 'package.json'), JSON.stringify({ name: 'isolated-core-consumer', version: '0.0.0', private: true, type: 'module', dependencies: localPackages, overrides: localPackages, devDependencies: { typescript, '@types/node': nodeTypes } }));
       // A fresh manifest, fresh lock, and a denying scope registry exercise npm's
       // sibling resolution. Root overrides resolve internal exact-version edges to
       // these same files; without them npm probes registry metadata before dedupe.
       // Third-party dependencies still use the normal registry.
       await writeFile(join(consumer, '.npmrc'), `@cardano-on-evm:registry=${registry}\n`);
-      const installed = await run('npm', ['install', '--ignore-scripts', ...(options.offline ? ['--offline'] : []), '--no-audit', '--no-fund', `--@cardano-on-evm:registry=${registry}`], { cwd: consumer, maxBuffer: 4 * 1024 * 1024, env: { ...process.env, NODE_OPTIONS: '', NODE_PATH: '' } });
+      const installed = await execute('npm', ['install', '--ignore-scripts', ...(options.offline ? ['--offline'] : []), '--no-audit', '--no-fund', `--@cardano-on-evm:registry=${registry}`], { cwd: consumer, maxBuffer: 4 * 1024 * 1024, env: { ...process.env, NODE_OPTIONS: '', NODE_PATH: '' } });
       await writeFile(join(consumerOut, 'npm-install.log'), installed.stdout + installed.stderr);
       assert.deepEqual(registryRequests, [], 'npm tried to fetch a project package from a registry');
       const lock = await json(join(consumer, 'package-lock.json'));
       assert.equal((await json(join(consumer, 'node_modules/@types/node/package.json'))).version, nodeTypes);
-      assert.equal((await json(join(consumer, 'node_modules/typescript/package.json'))).version, consumerTypeScriptVersion);
+      assert.equal((await json(join(consumer, 'node_modules/typescript/package.json'))).version, typescript);
       assert.equal(lock.packages['node_modules/@types/node'].version, nodeTypes);
+      assert.equal(lock.packages['node_modules/typescript'].version, typescript);
+      const compiler = join(consumer, 'node_modules/typescript/bin/tsc');
+      const compilerVersion = await execute(process.execPath, runtimeNodeArgs(options, [compiler, '--version']), { cwd: consumer, env: { ...process.env, NODE_OPTIONS: '', NODE_PATH: '' } });
+      assert.equal(compilerVersion.stdout.trim(), 'Version ' + typescript, 'Compiler execution differs from installed metadata');
+      await writeFile(join(consumerOut, 'compiler-version.log'), compilerVersion.stdout + compilerVersion.stderr);
+      const nativeName = `@typescript/typescript-${process.platform}-${process.arch}`;
+      const nativeCompiler = typescript === '7.0.2' ? await json(join(consumer, 'node_modules', nativeName, 'package.json')) : null;
+      if (nativeCompiler) {
+        assert.equal(nativeCompiler.version, typescript);
+        assert.equal(lock.packages['node_modules/' + nativeName].version, typescript);
+      }
       const projectEntries = Object.entries(lock.packages).filter(([path, entry]) => path.includes('node_modules/@cardano-on-evm/') || entry.name?.startsWith('@cardano-on-evm/'));
       assert.equal(projectEntries.length, names.length, 'Unexpected or duplicate project packages were installed');
       assert.ok(!Object.entries(lock.packages).some(([path, entry]) => path.includes('node_modules/@pimlico/alto') || entry.name === '@pimlico/alto'), 'Alto must not be a consumer dependency');
@@ -145,9 +158,9 @@ export async function checkConsumer(options) {
       }
       await writeFile(join(consumer, 'consumer.mjs'), runtimeFixture);
       await writeFile(join(consumer, 'consumer.ts'), declarationFixture);
-      const compiled = await run(process.execPath, runtimeNodeArgs(options, [join(consumer, 'node_modules/typescript/bin/tsc'), '--noEmit', '--strict', '--target', 'ES2022', '--module', 'NodeNext', '--moduleResolution', 'NodeNext', 'consumer.ts']), { cwd: consumer, maxBuffer: 1024 * 1024, env: { ...process.env, NODE_OPTIONS: '', NODE_PATH: '' } });
+      const compiled = await execute(process.execPath, runtimeNodeArgs(options, [compiler, '--noEmit', '--strict', '--skipLibCheck', 'false', '--types', 'node', '--target', 'ES2022', '--module', 'NodeNext', '--moduleResolution', 'NodeNext', 'consumer.ts']), { cwd: consumer, maxBuffer: 1024 * 1024, env: { ...process.env, NODE_OPTIONS: '', NODE_PATH: '' } });
       await writeFile(join(consumerOut, 'declarations.log'), compiled.stdout + compiled.stderr);
-      const executed = await run(process.execPath, runtimeNodeArgs(options, [join(consumer, 'consumer.mjs')]), { cwd: consumer, maxBuffer: 1024 * 1024, env: { ...process.env, NODE_OPTIONS: '', NODE_PATH: '', CARDANO_ON_EVM_TEST_VERSION: archives[0].version } });
+      const executed = await execute(process.execPath, runtimeNodeArgs(options, [join(consumer, 'consumer.mjs')]), { cwd: consumer, maxBuffer: 1024 * 1024, env: { ...process.env, NODE_OPTIONS: '', NODE_PATH: '', CARDANO_ON_EVM_TEST_VERSION: archives[0].version } });
       await writeFile(join(consumerOut, 'esm.log'), executed.stdout + executed.stderr);
       if (options.networkGuard) assert.equal(sha(await readFile(options.networkGuard)), report.networkGuard.sha256, 'The runtime network guard changed during acceptance');
       report.result = { ...JSON.parse(executed.stdout.trim()), installedDeclarationsTypecheck: true, sixLibrariesImported: true, projectRegistryRequests: registryRequests.length, allProjectDependenciesLocal: true, workspaceLinksUsed: false, runtimeNetworkGuarded: Boolean(options.networkGuard) };
@@ -157,14 +170,16 @@ export async function checkConsumer(options) {
         await writeFile(join(consumerOut, destination), bytes);
         await writeFile(join(options.out, destination), bytes);
       }
-      report.consumerChecks.push({ nodeTypes, typescript: consumerTypeScriptVersion, undiciTypes: lock.packages['node_modules/undici-types'].version,
-        lockfileSha256: report.lockfileSha256, evidence: 'node-types-' + nodeTypes, skipLibCheck: false, ...report.result });
+      report.consumerChecks.push({ nodeTypes, typescript, compilerVersion: compilerVersion.stdout.trim(), platform: process.platform, arch: process.arch,
+        nativeCompiler: nativeCompiler ? { name: nativeName, version: nativeCompiler.version } : null, undiciTypes: lock.packages['node_modules/undici-types'].version,
+        lockfileSha256: report.lockfileSha256, evidence, skipLibCheck: false, ...report.result });
       await new Promise((done) => blocker.close(done));
       blocker = undefined;
       await rm(consumer, { recursive: true });
       consumer = undefined;
       report.consumerRemoved = true;
     }
+    assert.equal(report.consumerChecks.length, consumerTypeScriptVersions.length * nodeTypeVersions.length, 'Incomplete consumer matrix');
     report.allChecksPassed = true;
   } catch (error) {
     report.failure = error.message;
@@ -174,7 +189,11 @@ export async function checkConsumer(options) {
     if (blocker?.listening) await new Promise((done) => blocker.close(done));
     if (consumer) {
       for (const [file, destination] of [['package.json', 'consumer-package.json'], ['package-lock.json', 'consumer-package-lock.json']]) {
-        try { await writeFile(join(options.out, destination), await readFile(join(consumer, file))); }
+        try {
+          const bytes = await readFile(join(consumer, file));
+          await writeFile(join(consumerOut, destination), bytes);
+          await writeFile(join(options.out, destination), bytes);
+        }
         catch (error) { if (error.code !== 'ENOENT') throw error; }
       }
       await rm(consumer, { recursive: true });

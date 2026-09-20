@@ -66,7 +66,11 @@ for (const path of ['PimlicoSimulations.sol/PimlicoSimulations.json', ...['06', 
 // Upstream's root build cleans esm before invoking its source package compiler.
 // Only this generated directory is removed; preferred source remains intact.
 await rm(resolve(source, 'src/esm'), { recursive: true, force: true });
-await run(process.execPath, [resolve(buildTools, 'node_modules/typescript/bin/tsc'), '-p', resolve(source, 'src/tsconfig.json'), '--noEmitOnError', '--pretty', 'false']);
+const compiler = resolve(buildTools, 'node_modules/typescript/bin/tsc');
+const compilerArgs = ['-p', resolve(source, 'src/tsconfig.json'), '--moduleResolution', 'bundler', '--rootDir', resolve(source, 'src'), '--types', 'node', '--noEmitOnError', '--pretty', 'false'];
+const typescriptVersion = await run(process.execPath, [compiler, '--version']);
+const effectiveTypeScriptConfiguration = JSON.parse(await run(process.execPath, [compiler, ...compilerArgs, '--showConfig']));
+await run(process.execPath, [compiler, ...compilerArgs]);
 await run(process.execPath, [resolve(buildTools, 'node_modules/tsc-alias/dist/bin/index.js'), '-p', resolve(source, 'src/tsconfig.json')]);
 const cliVersionOutput = await run(process.execPath, [resolve(source, 'src/esm/cli/alto.js'), '--version'], { cwd: resolve(source, 'src'), env: { PATH: process.env.PATH, DOTENV_CONFIG_PATH: '/dev/null' } });
 const compiledVersion = JSON.parse(await readFile(resolve(source, 'src/package.json'), 'utf8')).version;
@@ -83,7 +87,7 @@ async function inventory(directory, prefix = '') {
 await inventory(resolve(source, 'src/esm'));
 const evidence = { kind: 'alto-patched-preferred-source-build', builtAt: new Date().toISOString(), commit: pin.commit, sourceArchiveSha256: pin.sourceArchiveSha256, submodules: pin.submodules, forgeVersion, nodeVersion: process.version, compiledVersion, cliVersionOutput,
   buildToolLockSha256: sha(await readFile(resolve(buildTools, 'package-lock.json'))), runtimeLockSha256: sha(await readFile(resolve(root, 'package-lock.json'))), patches: JSON.parse(await readFile(resolve(root, '.local/patch-evidence.json'), 'utf8')), commands,
-  artifactChecks, compiledFiles, sourceBuildConfiguration: pin.sourceBuild,
+  artifactChecks, compiledFiles, sourceBuildConfiguration: pin.sourceBuild, typescriptVersion, effectiveTypeScriptConfiguration,
   notes: ['Build uses pinned npm tools and the separately locked runtime dependencies, replacing vulnerable upstream pnpm 8.', 'Solc-js standard JSON compiles the same Solidity versions/settings through the pinned Forge driver.'], sourceBuildPassed: true };
 await mkdir(resolve(root, '../../evidence/release'), { recursive: true });
 await writeFile(resolve(root, '../../evidence/release/alto-source-build.json'), JSON.stringify(evidence, null, 2) + '\n');
