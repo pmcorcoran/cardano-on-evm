@@ -32,7 +32,7 @@ jobs:
           npm ci --ignore-scripts
           node scripts/release/version.mjs apply
       - id: app
-        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2, verified 2026-09-11
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v2, verified 2026-09-11
         with:
           app-id: ${{ vars.VERSION_APP_ID }}
           private-key: ${{ secrets.VERSION_APP_PRIVATE_KEY }}
