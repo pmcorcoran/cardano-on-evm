@@ -232,6 +232,25 @@
       ],
       "installedSha256": "10c42b6dea7a7a377787d4a780c1392c3d67da57f711d7cca6e9f99b64fce299",
       "sourceSha256": "6fd4758d0a127d85f10888ed4e405b686657b2bbf914d358ad3da002b8c19b1e"
+    },
+    {
+      "name": "typescript7-yargs-type",
+      "reason": "Import the Argv type explicitly for TypeScript 7; the CLI runtime code is unchanged.",
+      "sourcePath": "src/cli/alto.ts",
+      "installedPath": "esm/cli/alto.js",
+      "sourceSha256": "51ac0c855c09bdefa3b5078b5feb4b86ef46c85cabdc7d1c4f8a57e72a4b0095",
+      "replacements": [],
+      "sourceReplacements": [
+        {
+          "find": "import yargs from \"yargs\"",
+          "replace": "import yargs, { type Argv } from \"yargs\""
+        },
+        {
+          "find": "getAltoCli(): yargs.Argv",
+          "replace": "getAltoCli(): Argv"
+        }
+      ],
+      "installedSha256": "21459cc07bda8359ab6c2b1834fec18d35a13ba2c74ec5dfb5a4192e2c2f7560"
     }
   ],
   "sourceBuild": {

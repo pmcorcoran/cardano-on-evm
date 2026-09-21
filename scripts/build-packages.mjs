@@ -1,5 +1,6 @@
 import { readdir, readFile, mkdir, copyFile, writeFile, rm } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 
 // tsc type-checks the complete workspace and emits JS/declarations. Each package
 // receives only its own output; sibling imports use public package specifiers.
@@ -22,5 +23,6 @@ for (const name of packages) {
   await copyFile('LICENSE', `${root}/LICENSE`);
 }
 await mkdir('artifacts', { recursive: true });
-await writeFile('artifacts/package-build.json', JSON.stringify({ kind: 'compiled-esm-and-types', addressDerivationMode: 'portable', packages: manifest }, null, 2) + '\n');
+const typescriptVersion = execFileSync(process.execPath, ['node_modules/typescript/bin/tsc', '--version'], { encoding: 'utf8' }).trim();
+await writeFile('artifacts/package-build.json', JSON.stringify({ kind: 'compiled-esm-and-types', addressDerivationMode: 'portable', typescriptVersion, platform: process.platform, arch: process.arch, packages: manifest }, null, 2) + '\n');
 console.log(`Built ${packages.length} ESM packages and declarations; no private bundler dependency.`);

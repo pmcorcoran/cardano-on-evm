@@ -120,7 +120,7 @@ jobs:
           SUITE: ${{ matrix.suite }}
         run: |
           npm install --global npm@11.19.0 --ignore-scripts
-          python3 scripts/ci/evidence.py run --context .local/ci/context.json --suite "$SUITE" --out .local/ci -- bash -euo pipefail -c 'npm ci --ignore-scripts && npm run check:repository && npm run version:check && npm run build:contracts && npm run check:types && npm test && npm run check:vendor && npm run test:ci && python3 scripts/ci/actionlint.py'
+          python3 scripts/ci/evidence.py run --context .local/ci/context.json --suite "$SUITE" --out .local/ci -- bash -euo pipefail -c 'npm ci --ignore-scripts && node node_modules/typescript/bin/tsc --version && npm run check:repository && npm run version:check && npm run build:contracts && npm run check:types && node node_modules/typescript/bin/tsc --noEmit --skipLibCheck false && npm run build && npm test && npm run check:vendor && npm run test:ci && python3 scripts/ci/actionlint.py'
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:

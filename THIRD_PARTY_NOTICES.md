@@ -12,7 +12,7 @@ copyright notices; the root license does not relicense it.
 | Smooth CryptoLib | immutable commit and file hashes | MIT; retain `vendor/scl/LICENSE`; historical audits do not cover new code |
 | EntryPoint v0.7 | npm source/artifact SHA-256 and source files | **GPL-3.0**, from source SPDX and upstream license; npm package metadata says MIT but does not override those source notices |
 | noble curves/hashes; scure base; viem | exact package versions and lockfile integrity | MIT; preserve shipped notices in redistributed bundles |
-| TypeScript, Node types, tsx, esbuild | lockfile | preserve individual package licenses; TypeScript Apache-2.0, the others MIT |
+| TypeScript 7.0.2 and its native platform compiler packages; Node types, tsx, esbuild | root and Alto build-tool lockfiles | preserve individual package licenses and bundled third-party notices; TypeScript Apache-2.0, the others MIT |
 | solc-js | 0.8.30, lockfile | retain package/compiler licenses; bundled compiler GPL-3.0; used as a build tool |
 | Alto, separately installed | 0.0.21, commit and checksum-verified patches in `infra/bundler/upstream.json` | GPL-3.0-or-later; preferred source fetch/patch instructions and original license supplied; preferred-source Solidity/TypeScript rebuild and source-worker validation instructions supplied |
 | C2SP/Wycheproof Ed25519 test corpus | commit and SHA-256 in `fixtures/wycheproof-provenance.json` | Apache-2.0; original dataset retained with `fixtures/LICENSE.Wycheproof`; used only in tests |

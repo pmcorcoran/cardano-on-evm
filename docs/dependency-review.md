@@ -20,14 +20,9 @@ does not authorize future major upgrades.
   and the Node **22.18.0** runtime floor. The review and consumer coverage are
   described below. The major-version hold remains for future unreviewed updates.
 - [TypeScript #12](https://github.com/pmcorcoran/cardano-on-evm/pull/12) and
-  [#13](https://github.com/pmcorcoran/cardano-on-evm/pull/13): defer TypeScript 7
-  as a coordinated compiler migration across the root and Alto build tools.
-  Alto's pinned configuration uses `moduleResolution: "node"`, which TypeScript
-  7 removes. Select and validate compatible module resolution and imports
-  without editing vendored source or compiler/bytecode fixtures. Require the
-  supported Node matrix, declarations, isolated consumers, a fresh Alto source
-  rebuild with all nine bytecode comparisons, and worker regressions. This
-  compiler migration is outside the dependency review goal.
+  [#13](https://github.com/pmcorcoran/cardano-on-evm/pull/13): implemented together
+  as the TypeScript **7.0.2** compiler migration described below. The major-version
+  holds remain for future unreviewed compiler updates.
 - [pyee #11](https://github.com/pmcorcoran/cardano-on-evm/pull/11): close as
   incompatible. Playwright 1.62.0 requires `pyee>=13,<14`; the resolver rejects
   the proposed pyee 14 combination. Revisit when a reviewed Playwright release
@@ -52,8 +47,8 @@ The root development dependency changes from `@types/node` 24.3.1 to 26.6.1.
 Its sole dependency changes from `undici-types` 7.10.0 to 8.9.0. Both packages
 contain declarations; this does not install or replace Node's runtime Undici.
 The minimum TypeScript version declared by the Node types rises from 5.2 to 5.6;
-the root and Alto compiler remain pinned to 5.9.2. No TypeScript migration or
-bundler lockfile update is part of this change.
+the minimum supported consumer compiler remains **5.9.2**. Root and Alto build
+tools now use **7.0.2**, as reviewed in the coordinated migration below.
 
 Newer declarations do not establish runtime compatibility. Review project
 source, tooling, tests, and emitted declarations against the
@@ -75,7 +70,8 @@ operations and require actual Node 22.18.0 execution when changing these paths.
 
 `scripts/check-package-install.mjs` installs the same six archives in fresh
 consumers using **22.18.0**, **24.3.1**, and **26.6.1** Node declarations with
-TypeScript **5.9.2**. It verifies the installed versions, checks declaration
+both TypeScript **5.9.2** and **7.0.2**. It verifies the installed versions and
+executed compiler versions, checks declaration
 files without `skipLibCheck`, and runs the ESM/API, enrollment, signing and
 SQLite checks for every consumer. Each consumer retains its lockfile, exact
 declaration and Undici type versions, and logs in the report directory. This
@@ -89,9 +85,83 @@ the isolated consumer command on all three runtimes, comparing the six archive
 hashes across reports. Record fresh all-severity audits for all three trees.
 Historical checks on the closed proposal do not satisfy these requirements.
 
-This changes development declarations and validation tooling. Public package
-sources, APIs, engine floors, fixtures, vendored inputs and compiler settings
-remain unchanged, so it does not require a package Changeset.
+The Node declaration upgrade changes development declarations and validation
+tooling. It preserves public APIs, engine floors, fixtures, vendored inputs and
+Solidity compiler settings and does not require a package Changeset.
+
+## Coordinated TypeScript 7.0.2 migration
+
+Root and `infra/bundler/build-tools` pin exactly **7.0.2**, with locks generated
+by **npm 11.19.0**. The only dependency changes are TypeScript and its exact native
+platform dependencies. The separate Alto runtime lockfile is unchanged. Native
+compiler packages remain optional platform selections in both complete lockfiles;
+`npm ci --ignore-scripts` and the existing `tsc`/Node launcher commands are retained.
+The root configuration explicitly selects Node types while retaining ES2022,
+NodeNext, strictness, input coverage, declarations and output paths.
+
+Alto's removed `node` module resolution is overridden with **bundler** resolution,
+explicit Node types and `rootDir` pointing to its extracted `src` directory.
+The ESNext target/module and `src/esm` layout are preserved. The existing
+`tsc-alias` pass still rewrites aliases and completes JavaScript import paths.
+`typescript7-yargs-type` imports `Argv` as a type and replaces the old
+`yargs.Argv` annotation. The existing patch mechanism checks original source
+hashes, rejects partial/tampered inputs and permits idempotent reapplication.
+Its installed replacements are empty, so installed-worker JavaScript is unchanged.
+Upstream source archives, submodule pins, vendored inputs and Solidity settings
+are preserved.
+
+Compatibility evidence is required for Node **22.18.0**, **24.21.0**, and
+**26.8.1**, including clean installs, contracts, type checking with library checks
+also enabled, builds, units, CI regressions and repository/vendor checks. The
+consumer checker runs all six TypeScript/Node-declaration pairs on each runtime:
+**5.9.2** and **7.0.2** × **22.18.0**, **24.3.1**, and **26.6.1**. Build one set of
+six archives and pass the same `--archives` directory for all **18** consumers.
+Every pair requires declarations with `skipLibCheck: false`, existing ESM/export,
+enrollment, signing and SQLite checks, and exact local sibling archive integrity.
+The original consumer target implicitly included DOM, DOM iterables, worker
+import scripts and ScriptHost declarations. Every pair now explicitly includes
+those same **unmodified TypeScript 5.9.2 host-library files**, with ES2022 from
+the selected compiler. TypeScript 7 consumers install the exact npm alias
+`typescript-host-libs: npm:typescript@5.9.2`; this is consumer-only validation
+input and is absent from the public packages and all three repository locks.
+Each report verifies its installed version and records all five file hashes,
+requiring identical host-library bytes between combinations. No declaration is
+patched, deleted or skipped, and all previous browser declaration coverage remains.
+
+This holds the browser API baseline fixed while changing compiler and Node
+versions. Node 24.3.1 declares `URLPattern` incompatibly with TypeScript 7's newer
+bundled DOM library. Using that newer DOM library with the old Node declaration
+version is **not** claimed to pass. Removing DOM also fails dependency declarations
+for WebCrypto/WebAuthn, so it is not an accepted workaround. The root retains its
+TypeScript 7 ES2022/DOM libraries, full declaration check and browser acceptance.
+An explicit consumer project keeps ancestor configurations from affecting
+standalone bundles or custom temporary directories.
+
+`package-install.json` records each executed compiler, installed Node/Undici
+declarations, native platform package, archive hashes and consumer lock hash.
+Each `typescript-VERSION-node-types-VERSION/` directory retains its own manifest,
+lockfile, project configuration and install/compiler/declaration/ESM logs. A later pair's failure leaves
+the aggregate unsuccessful. The same checker works in a standalone library bundle
+without a root workspace manifest. Focused regressions exercise the full loop,
+its failure path and the source-only patch's idempotence/tamper rejection.
+
+`artifacts/package-build.json` records the root compiler version and host platform.
+Alto's `source-build-manifest.json` records its executed compiler and effective
+`--showConfig` output alongside source, patch, lock and compiled-file hashes.
+The fresh baseline comparison preserves emitted JavaScript and Solidity bytecode.
+Package notices record the updated compiler. Declaration differences are quote formatting, property ordering
+and equivalent `Address`/`Hex` aliases; compatibility checks must establish
+unchanged public APIs/runtime behavior. A fresh Alto source build must reproduce
+all nine creation/runtime bytecode pairs, resolve emitted imports, start its CLI
+and pass installed/source worker regressions across supported Node runtimes.
+The [acceptance procedure](acceptance.md) also requires browsers, local chains,
+fresh all-severity audits of all three trees and complete license collection.
+Local Linux ARM64 and GitHub Linux x64 must both install and execute the native
+compiler. Historical checks and migration probes do not establish final acceptance.
+
+No package version bump or Changeset accompanies this build-tool migration:
+public behavior, interfaces and the Node **>=22.18.0** floor remain the acceptance
+contract. Dependabot major holds and security/release policies remain in force.
 
 ## Coordinated runtime migration
 

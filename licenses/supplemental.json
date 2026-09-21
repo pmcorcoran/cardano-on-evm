@@ -8,6 +8,14 @@
     "note": "Platform binary distributions share the project license"
   },
   {
+    "name": "@esbuild/*",
+    "version": "0.28.2",
+    "file": "licenses/supplemental/b40ec5baec7bb34fa5b1c09521fa3cd52d5fad7adafed74932a2010d3612a681.txt",
+    "sha256": "b40ec5baec7bb34fa5b1c09521fa3cd52d5fad7adafed74932a2010d3612a681",
+    "source": "esbuild@0.28.2/LICENSE.md",
+    "note": "Platform binary distributions share the project license"
+  },
+  {
     "name": "@msgpackr-extract/*",
     "version": "3.0.4",
     "file": "licenses/supplemental/d00470775464c789c7ac04cfba3bf1b79ef149790eb72556d1c51d8f50c8e7f3.txt",
