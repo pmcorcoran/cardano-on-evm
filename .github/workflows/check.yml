@@ -306,7 +306,7 @@ jobs:
           setup-python-dependencies: false
           dependency-caching: false
           trap-caching: false
-      - uses: github/codeql-action/analyze@b96794f015dfd88f77b49b1c93e0fa7110f94c63 # v4, verified 2026-09-11
+      - uses: github/codeql-action/analyze@1c5b675653bb5c22dbe9b12b556ec555138e09fd # v4, verified 2026-09-11
         with:
           output: .local/ci/codeql-${{ matrix.language }}/sarif
           category: /language:${{ matrix.language }}
