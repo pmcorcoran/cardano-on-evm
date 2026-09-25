@@ -46,7 +46,7 @@
     "@types/node": "26.6.1",
     "esbuild": "0.28.2",
     "solc": "0.8.30",
-    "tsx": "4.20.5",
+    "tsx": "4.23.15",
     "typescript": "7.0.2"
   },
   "overrides": {
