@@ -13,7 +13,7 @@
   },
   "dependencies": {
     "@cardano-on-evm/protocol": "0.1.0",
-    "viem": "2.56.3"
+    "viem": "2.56.8"
   },
   "files": [
     "dist",
