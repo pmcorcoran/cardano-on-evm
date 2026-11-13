@@ -1,9 +1,16 @@
 # Python 3.13; hashes verified from the versioned PyPI release metadata.
 # Linux x86_64 and aarch64 wheels; no unpinned transitive dependencies.
 --only-binary=:all:
-playwright==1.62.0 \
-    --hash=sha256:ba33bae6a13b3d9d354c751cb618af357d20fe1d57767cbcce52079bbef17ad3 \
-    --hash=sha256:db2d76613a57ad844362ce42f7d0c2fa26b19a4f7a46d4f76b891c631e6e5aff
+playwright==1.65.0 \
+    --hash=sha256:17e8e46065aa1a2e2aa3c3efde37788fecd0e5e645c7020780ebe684305118ca \
+    --hash=sha256:229d6b184de3da7bf292cc38a63ee82aefb5c9f0a4233b1142f3ffb1cbd410ec \
+    --hash=sha256:67f0b1a80d0d2d4349f67c1ccfeceaa067f1d85aaac32d4d81dd3e971a96ddbb \
+    --hash=sha256:78d2bd6127463552ddd890516e5eb4cc805559af474aa5ccf5b62e907972ce16 \
+    --hash=sha256:81f6a4c56e25d2e0f66232c3548649b17697ee3211e222aae78d4ecafad51918 \
+    --hash=sha256:9072e6394fec07e56e17fec0ca271a7847dda4716db9d716291d1f7344f199bb \
+    --hash=sha256:ab22611318e8747477c949c81b055ee6e224ecedf66c2a794209c7fd0210a743 \
+    --hash=sha256:d9efef7b809020325d3d1bb34eb05c93865199274319249c9f6a77cd17fd8573 \
+    --hash=sha256:e8e4d4a177bef2c2f2a17019febadded1c84cd1499b80f7100bb30ff20df7bad
 greenlet==3.5.6 \
     --hash=sha256:0616b8f878098c5681fd8f0dc92d887551717402342a70f0abcbfea5f5ad8a44 \
     --hash=sha256:06c0e933290fba8ffe53ead4ae1b8044b0e9754b75cebf381aa2bc3e50d82fac \
